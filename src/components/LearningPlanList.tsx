@@ -2,8 +2,6 @@ import { useState, useEffect, ChangeEvent } from "react";
 import { parseLearningPlan, ParsedPlan } from "@/utils/mdParser";
 import { parseAndPersistPlan } from "@/utils/planSync";
 import { useSQLite } from "@/hooks/useSQLite";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
 import {
   CheckSquare,
@@ -57,21 +55,29 @@ export default function LearningPlanList() {
 
   // Parse and sync whenever rawMarkdown changes
   useEffect(() => {
-    const fallbackName = openedFileName || "Learning Plan";
-    const parsed = parseLearningPlan(rawMarkdown, fallbackName);
-    setPlan(parsed);
+    try {
+      const fallbackName = openedFileName || "Learning Plan";
+      const parsed = parseLearningPlan(rawMarkdown, fallbackName);
+      setPlan(parsed);
 
-    if (isReady) {
-      setIsSyncing(true);
-      parseAndPersistPlan(rawMarkdown, fallbackName, insertProgressLog).finally(
-        () => setIsSyncing(false)
-      );
+      if (isReady && insertProgressLog) {
+        setIsSyncing(true);
+        parseAndPersistPlan(rawMarkdown, fallbackName, insertProgressLog)
+          .catch((err) => console.warn("Plan sync warning:", err))
+          .finally(() => setIsSyncing(false));
+      }
+    } catch (err) {
+      console.error("Error in LearningPlanList useEffect:", err);
     }
   }, [rawMarkdown, isReady, insertProgressLog, openedFileName]);
 
-  // Open file via native Tauri dialog or file picker
-  const handleOpenNativeFileDialog = async () => {
+  // Open file via native Tauri dialog or file picker with fallback
+  const handleOpenFileDialog = async () => {
     try {
+      // Dynamic import of Tauri dialog to prevent top-level module load failures outside desktop shell
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+
       const selected = await open({
         multiple: false,
         filters: [
@@ -87,12 +93,14 @@ export default function LearningPlanList() {
         const fileName = selected.split(/[\/\\]/).pop() || "Loaded Plan";
         setOpenedFileName(fileName);
         setRawMarkdown(fileContent);
+        return;
       }
     } catch (err) {
       console.warn("Tauri native file picker dialog bypassed/fallback:", err);
-      // Trigger hidden HTML file input fallback if native plugin dialog is not in desktop shell
-      document.getElementById("hidden-file-input")?.click();
     }
+
+    // Trigger HTML input fallback if native dialog fails or is canceled
+    document.getElementById("hidden-file-input")?.click();
   };
 
   const handleHTMLFileInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -111,34 +119,31 @@ export default function LearningPlanList() {
   };
 
   const toggleTask = (index: number) => {
-    const lines = rawMarkdown.split("\n");
-    let taskCount = 0;
+    try {
+      const lines = rawMarkdown.split("\n");
+      let taskCount = 0;
 
-    const updatedLines = lines.map((line) => {
-      const match = line.match(/^([\s]*[-*]\s+\[)([ xX])(\]\s+.+)$/);
-      if (match) {
-        if (taskCount === index) {
-          const currentStatus = match[2].toLowerCase() === "x";
-          const newStatus = currentStatus ? " " : "x";
+      const updatedLines = lines.map((line) => {
+        const match = line.match(/^([\s]*[-*]\s+\[)([ xX])(\]\s+.+)$/);
+        if (match) {
+          if (taskCount === index) {
+            const currentStatus = match[2].toLowerCase() === "x";
+            const newStatus = currentStatus ? " " : "x";
+            taskCount++;
+            return `${match[1]}${newStatus}${match[3]}`;
+          }
           taskCount++;
-          return `${match[1]}${newStatus}${match[3]}`;
         }
-        taskCount++;
-      }
-      return line;
-    });
+        return line;
+      });
 
-    setRawMarkdown(updatedLines.join("\n"));
+      setRawMarkdown(updatedLines.join("\n"));
+    } catch (err) {
+      console.error("Error toggling task:", err);
+    }
   };
 
-  if (!plan) {
-    return (
-      <div className="p-6 bg-card rounded-xl border border-border animate-pulse">
-        <div className="h-6 w-48 bg-muted rounded mb-4"></div>
-        <div className="h-4 w-full bg-muted rounded"></div>
-      </div>
-    );
-  }
+  const activePlan = plan || parseLearningPlan(SAMPLE_PLAN_MARKDOWN, "Learning Plan");
 
   return (
     <div className="space-y-6">
@@ -158,7 +163,7 @@ export default function LearningPlanList() {
             <div className="flex items-center gap-2">
               <FileText className="size-5 text-primary" />
               <h2 className="text-xl font-bold tracking-tight text-foreground">
-                {plan.name}
+                {activePlan.name}
               </h2>
               {isSyncing && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
@@ -166,9 +171,9 @@ export default function LearningPlanList() {
                 </span>
               )}
             </div>
-            {plan.description && (
+            {activePlan.description && (
               <p className="text-sm text-muted-foreground">
-                {plan.description}
+                {activePlan.description}
               </p>
             )}
           </div>
@@ -177,7 +182,7 @@ export default function LearningPlanList() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleOpenNativeFileDialog}
+              onClick={handleOpenFileDialog}
               className="gap-2 text-xs font-semibold h-9"
             >
               <FolderOpen className="size-4 text-primary" />
@@ -186,11 +191,11 @@ export default function LearningPlanList() {
 
             <div className="text-right border-l border-border/60 pl-3">
               <div className="text-2xl font-extrabold text-foreground flex items-center justify-end gap-1">
-                <span>{plan.percentage}%</span>
+                <span>{activePlan.percentage}%</span>
                 <Percent className="size-4 text-primary" />
               </div>
               <p className="text-xs text-muted-foreground">
-                {plan.completed} of {plan.total} tasks completed
+                {activePlan.completed} of {activePlan.total} tasks completed
               </p>
             </div>
           </div>
@@ -201,16 +206,16 @@ export default function LearningPlanList() {
           <div className="h-3 w-full bg-secondary rounded-full overflow-hidden p-0.5 border border-border/50">
             <div
               className="h-full bg-gradient-to-r from-primary via-primary-light to-accent-app rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${plan.percentage}%` }}
+              style={{ width: `${activePlan.percentage}%` }}
             />
           </div>
         </div>
 
         {/* Tags */}
-        {plan.tags && plan.tags.length > 0 && (
+        {activePlan.tags && activePlan.tags.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <Tag className="size-3.5 text-muted-foreground" />
-            {plan.tags.map((tag) => (
+            {activePlan.tags.map((tag) => (
               <span
                 key={tag}
                 className="text-xs font-medium bg-secondary text-secondary-foreground px-2.5 py-0.5 rounded-md border border-border/50"
@@ -220,12 +225,15 @@ export default function LearningPlanList() {
             ))}
           </div>
         )}
+
         <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
           <span className="flex items-center gap-1">
             <Upload className="size-3 text-primary" />
             {openedFileName ? `Loaded: ${openedFileName}` : "Viewing sample plan"}
           </span>
-          <span className="font-mono text-emerald-400">SQLite Snapshot Active</span>
+          <span className="font-mono text-emerald-400">
+            {isReady ? "SQLite Snapshot Active" : "Initializing Database..."}
+          </span>
         </div>
       </div>
 
@@ -242,30 +250,36 @@ export default function LearningPlanList() {
         </div>
 
         <div className="divide-y divide-border/40 rounded-lg border border-border/60 overflow-hidden bg-background/50">
-          {plan.tasks.map((task, idx) => (
-            <button
-              key={idx}
-              onClick={() => toggleTask(idx)}
-              className={`w-full flex items-start gap-3 p-3.5 text-left transition-colors hover:bg-muted/50 ${
-                task.done ? "bg-muted/20" : ""
-              }`}
-            >
-              {task.done ? (
-                <CheckSquare className="size-5 text-primary shrink-0 mt-0.5" />
-              ) : (
-                <Square className="size-5 text-muted-foreground shrink-0 mt-0.5" />
-              )}
-              <span
-                className={`text-sm ${
-                  task.done
-                    ? "line-through text-muted-foreground font-normal"
-                    : "text-foreground font-medium"
+          {activePlan.tasks && activePlan.tasks.length > 0 ? (
+            activePlan.tasks.map((task, idx) => (
+              <button
+                key={idx}
+                onClick={() => toggleTask(idx)}
+                className={`w-full flex items-start gap-3 p-3.5 text-left transition-colors hover:bg-muted/50 ${
+                  task.done ? "bg-muted/20" : ""
                 }`}
               >
-                {task.text}
-              </span>
-            </button>
-          ))}
+                {task.done ? (
+                  <CheckSquare className="size-5 text-primary shrink-0 mt-0.5" />
+                ) : (
+                  <Square className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+                )}
+                <span
+                  className={`text-sm ${
+                    task.done
+                      ? "line-through text-muted-foreground font-normal"
+                      : "text-foreground font-medium"
+                  }`}
+                >
+                  {task.text}
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              No checklist tasks found in this markdown file. Add lines starting with <code className="font-mono text-primary">- [ ] task</code> to see them here.
+            </div>
+          )}
         </div>
       </div>
     </div>

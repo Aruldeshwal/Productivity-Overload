@@ -28,48 +28,67 @@ export interface TaskItem {
 }
 
 /**
- * Parse a markdown learning plan file.
+ * Parse a markdown learning plan file safely.
  *
  * Extracts:
- * 1. Frontmatter metadata (title, description, tags) via gray-matter
+ * 1. Frontmatter metadata (title, description, tags) via gray-matter with safe fallback
  * 2. Checklist completion via regex: `- [x]` (completed) and `- [ ]` (incomplete)
  *
- * This is a deterministic, regex-based parser — NOT an LLM call.
- * A compiled regex runs in microseconds and is 100% deterministic;
- * routing a simple checkbox count through a 7B model would cost seconds
- * and could hallucinate or misparse.
- *
- * @param content - Raw markdown string
- * @param fallbackName - Fallback name if frontmatter has no title
- * @returns ParsedPlan with metadata and completion statistics
+ * Fully crash-proof: handles malformed input or browser environment without throwing.
  */
 export function parseLearningPlan(
   content: string,
   fallbackName = "Untitled Plan"
 ): ParsedPlan {
-  // Parse frontmatter
-  const { data: frontmatter, content: body } = matter(content);
+  let name = fallbackName;
+  let description: string | undefined = undefined;
+  let tags: string[] | undefined = undefined;
+  let body = content || "";
 
-  const name =
-    (frontmatter.title as string) ||
-    (frontmatter.name as string) ||
-    fallbackName;
-  const description = frontmatter.description as string | undefined;
-  const tags = frontmatter.tags as string[] | undefined;
+  // Try parsing frontmatter safely
+  try {
+    if (content && typeof content === "string") {
+      const parsedMatter = matter(content);
+      const frontmatter = parsedMatter.data || {};
+      body = parsedMatter.content || content;
+
+      if (frontmatter.title && typeof frontmatter.title === "string") {
+        name = frontmatter.title;
+      } else if (frontmatter.name && typeof frontmatter.name === "string") {
+        name = frontmatter.name;
+      }
+
+      if (frontmatter.description && typeof frontmatter.description === "string") {
+        description = frontmatter.description;
+      }
+
+      if (Array.isArray(frontmatter.tags)) {
+        tags = frontmatter.tags.map(String);
+      }
+    }
+  } catch (err) {
+    console.warn("gray-matter parse warning, falling back to body:", err);
+    // Simple regex fallback for frontmatter title
+    const titleMatch = content.match(/^title:\s*(.+)$/m);
+    if (titleMatch) {
+      name = titleMatch[1].replace(/['"]/g, "").trim();
+    }
+  }
 
   // Extract all checklist items using regex
-  // Matches: - [x], - [X], * [x], * [X] (completed)
-  //          - [ ], * [ ] (incomplete)
   const tasks: TaskItem[] = [];
 
-  // Match checklist lines: optional whitespace, then - or *, then [x] or [ ]
-  const checklistRegex = /^[\s]*[-*]\s+\[([ xX])\]\s+(.+)$/gm;
-  let match: RegExpExecArray | null;
+  try {
+    const checklistRegex = /^[\s]*[-*]\s+\[([ xX])\]\s+(.+)$/gm;
+    let match: RegExpExecArray | null;
 
-  while ((match = checklistRegex.exec(body)) !== null) {
-    const isDone = match[1].toLowerCase() === "x";
-    const text = match[2].trim();
-    tasks.push({ text, done: isDone });
+    while ((match = checklistRegex.exec(body)) !== null) {
+      const isDone = match[1].toLowerCase() === "x";
+      const text = match[2].trim();
+      tasks.push({ text, done: isDone });
+    }
+  } catch (err) {
+    console.error("Regex checklist extraction failed:", err);
   }
 
   const completed = tasks.filter((t) => t.done).length;
@@ -87,15 +106,10 @@ export function parseLearningPlan(
   };
 }
 
-/**
- * Parse multiple markdown files into parsed plans.
- * Useful when loading a directory of learning plan files.
- */
 export function parseLearningPlans(
   files: Array<{ name: string; content: string }>
 ): ParsedPlan[] {
   return files.map((file) => {
-    // Use filename (without .md extension) as fallback name
     const fallbackName = file.name.replace(/\.md$/i, "");
     return parseLearningPlan(file.content, fallbackName);
   });

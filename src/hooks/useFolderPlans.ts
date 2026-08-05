@@ -206,6 +206,30 @@ export function useFolderPlans() {
     );
   };
 
+  // Re-lock or set unlocked day back down
+  const lockDay = (filePath: string, targetDay: number) => {
+    const target = plans.find((p) => p.filePath === filePath);
+    if (!target) return;
+
+    const newUnlockedDay = Math.max(1, targetDay);
+    saveUnlockedDay(filePath, newUnlockedDay);
+
+    const reParsed = parseLearningPlan(
+      target.rawContent,
+      target.fileName.replace(/\.md$/i, ""),
+      filePath,
+      newUnlockedDay
+    );
+
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.filePath === filePath
+          ? { ...p, unlockedDay: newUnlockedDay, parsedPlan: reParsed }
+          : p
+      )
+    );
+  };
+
   useEffect(() => {
     if (folderPath) {
       scanFolder();
@@ -221,5 +245,6 @@ export function useFolderPlans() {
     scanFolder,
     markTaskCompletedAndRemoveFromDisk,
     unlockNextDay,
+    lockDay,
   };
 }

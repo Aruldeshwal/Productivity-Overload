@@ -27,8 +27,9 @@ export interface ParsedPlan {
  * Parse a markdown learning plan file with Day tracking support.
  *
  * Scans headers like:
- * `## Day 1: Rust Basics` or `### Day 2 - Async Tasks`
- * If no Day headers are found, defaults all tasks to Day 1.
+ * `## Day 1` -> Section title is empty, renders cleanly as "Day 1:"
+ * `## Day 1: Rust Basics` -> Renders cleanly as "Day 1: Rust Basics"
+ * `### Day 2 - Async Tasks` -> Renders cleanly as "Day 2: Async Tasks"
  */
 export function parseLearningPlan(
   content: string,
@@ -74,24 +75,28 @@ export function parseLearningPlan(
   const daySectionsMap = new Map<number, { day: number; title: string; tasks: TaskItem[] }>();
 
   let currentDay = 1;
-  let currentSectionTitle = "Day 1";
+  let currentSectionTitle = "";
   let maxDayFound = 1;
 
   lines.forEach((line, lineIdx) => {
     const trimmed = line.trim();
 
-    // Check for Day headers (e.g. ## Day 1: Setup, ## Day 2 - Async, Phase 1 / Day 3)
-    const headerMatch = trimmed.match(/^#{1,4}\s+(?:Phase\s+\d+:?\s*)?(?:Day\s+(\d+)|Module\s+(\d+))?:?\s*(.*)$/i);
-    if (headerMatch && (headerMatch[1] || headerMatch[2] || trimmed.toLowerCase().includes("day"))) {
-      const parsedDayNum = parseInt(headerMatch[1] || headerMatch[2], 10);
+    // Match Day / Phase / Module headers cleanly
+    const headerMatch = trimmed.match(/^#{1,4}\s+(?:Phase\s+\d+:?\s*)?(?:Day|Module)\s*(\d+)?:?\s*[-:]?\s*(.*)$/i);
+    if (headerMatch) {
+      const parsedDayNum = parseInt(headerMatch[1], 10);
       if (!isNaN(parsedDayNum)) {
         currentDay = parsedDayNum;
       } else {
-        // If header says Day without explicit number, increment
         currentDay = maxDayFound + 1;
       }
       maxDayFound = Math.max(maxDayFound, currentDay);
-      currentSectionTitle = headerMatch[3]?.trim() || `Day ${currentDay}`;
+
+      let extra = (headerMatch[2] || "").trim();
+      // Strip redundant "Day N" if repeated in extra string
+      extra = extra.replace(/^Day\s+\d+:?\s*/i, "").replace(/^[-:]\s*/, "").trim();
+
+      currentSectionTitle = extra;
     }
 
     // Check for checklist items
@@ -145,14 +150,13 @@ export function parseLearningPlan(
 
 /**
  * Removes a completed task line from the raw markdown string.
- * This is used when a task is completed so the content line is removed/stripped from disk.
  */
 export function removeTaskFromMarkdown(rawContent: string, taskText: string): string {
   const lines = rawContent.split("\n");
   const filteredLines = lines.filter((line) => {
     const isTaskLine = /^[\s]*[-*]\s+\[[ xX]\]/.test(line.trim());
     if (isTaskLine && line.includes(taskText)) {
-      return false; // Remove this completed task line
+      return false;
     }
     return true;
   });

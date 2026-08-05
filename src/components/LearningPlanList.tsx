@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { parseLearningPlan, ParsedPlan } from "@/utils/mdParser";
 import { parseAndPersistPlan } from "@/utils/planSync";
 import { useSQLite } from "@/hooks/useSQLite";
+import { open } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
+import { Button } from "@/components/ui/button";
 import {
   CheckSquare,
   Square,
@@ -10,6 +13,8 @@ import {
   RefreshCw,
   Tag,
   BarChart2,
+  FolderOpen,
+  Upload,
 } from "lucide-react";
 
 // Initial sample markdown plan
@@ -37,7 +42,7 @@ tags:
 - [ ] Connect Tauri notification plugin for scheduled reminders
 - [ ] Build background interval scheduler hook
 
-## Phase 3: Local LLM Orchestration
+## Phase 3: Local AI Integration
 - [ ] Implement Ollama bridge targeting qwen2.5-coder:7b
 - [ ] Extract structured JSON (procrastination & delayed tasks)
 - [ ] Implement DeepSeek-R1 CoT streaming weekly CBT report
@@ -48,19 +53,62 @@ export default function LearningPlanList() {
   const [rawMarkdown, setRawMarkdown] = useState<string>(SAMPLE_PLAN_MARKDOWN);
   const [plan, setPlan] = useState<ParsedPlan | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [openedFileName, setOpenedFileName] = useState<string | null>(null);
 
   // Parse and sync whenever rawMarkdown changes
   useEffect(() => {
-    const parsed = parseLearningPlan(rawMarkdown, "Learning Plan");
+    const fallbackName = openedFileName || "Learning Plan";
+    const parsed = parseLearningPlan(rawMarkdown, fallbackName);
     setPlan(parsed);
 
     if (isReady) {
       setIsSyncing(true);
-      parseAndPersistPlan(rawMarkdown, "Learning Plan", insertProgressLog).finally(
+      parseAndPersistPlan(rawMarkdown, fallbackName, insertProgressLog).finally(
         () => setIsSyncing(false)
       );
     }
-  }, [rawMarkdown, isReady, insertProgressLog]);
+  }, [rawMarkdown, isReady, insertProgressLog, openedFileName]);
+
+  // Open file via native Tauri dialog or file picker
+  const handleOpenNativeFileDialog = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: "Markdown Learning Plans",
+            extensions: ["md", "markdown"],
+          },
+        ],
+      });
+
+      if (selected && typeof selected === "string") {
+        const fileContent = await readTextFile(selected);
+        const fileName = selected.split(/[\/\\]/).pop() || "Loaded Plan";
+        setOpenedFileName(fileName);
+        setRawMarkdown(fileContent);
+      }
+    } catch (err) {
+      console.warn("Tauri native file picker dialog bypassed/fallback:", err);
+      // Trigger hidden HTML file input fallback if native plugin dialog is not in desktop shell
+      document.getElementById("hidden-file-input")?.click();
+    }
+  };
+
+  const handleHTMLFileInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text) {
+          setOpenedFileName(file.name);
+          setRawMarkdown(text);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
 
   const toggleTask = (index: number) => {
     const lines = rawMarkdown.split("\n");
@@ -94,6 +142,15 @@ export default function LearningPlanList() {
 
   return (
     <div className="space-y-6">
+      {/* Hidden File Input Fallback */}
+      <input
+        id="hidden-file-input"
+        type="file"
+        accept=".md,.markdown"
+        onChange={handleHTMLFileInput}
+        className="hidden"
+      />
+
       {/* Header & Plan Summary */}
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -117,7 +174,17 @@ export default function LearningPlanList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="text-right">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenNativeFileDialog}
+              className="gap-2 text-xs font-semibold h-9"
+            >
+              <FolderOpen className="size-4 text-primary" />
+              Open .md File
+            </Button>
+
+            <div className="text-right border-l border-border/60 pl-3">
               <div className="text-2xl font-extrabold text-foreground flex items-center justify-end gap-1">
                 <span>{plan.percentage}%</span>
                 <Percent className="size-4 text-primary" />
@@ -154,8 +221,11 @@ export default function LearningPlanList() {
           </div>
         )}
         <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
-          <span>Auto-synchronized with SQLite database</span>
-          <span className="font-mono text-emerald-400">Snapshot Active</span>
+          <span className="flex items-center gap-1">
+            <Upload className="size-3 text-primary" />
+            {openedFileName ? `Loaded: ${openedFileName}` : "Viewing sample plan"}
+          </span>
+          <span className="font-mono text-emerald-400">SQLite Snapshot Active</span>
         </div>
       </div>
 

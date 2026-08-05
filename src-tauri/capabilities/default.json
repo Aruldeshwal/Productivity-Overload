@@ -1,13 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window — scoped filesystem, SQL, and notification access",
+  "description": "Capability for the main window — scoped filesystem, dialog, SQL, and notification access",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "dialog:default",
+    "dialog:allow-open",
     "sql:default",
     "sql:allow-execute",
     "sql:allow-select",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface OllamaMessage {
   role: "system" | "user" | "assistant";
@@ -19,54 +19,59 @@ export interface OllamaModelInfo {
   digest: string;
 }
 
-const OLLAMA_BASE_URL = "http://localhost:11434";
+// Support both IPv4 127.0.0.1 and localhost for Windows compatibility
+const OLLAMA_ENDPOINTS = [
+  "http://127.0.0.1:11434",
+  "http://localhost:11434",
+];
 
 export function useOllama() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(true);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const activeEndpointRef = useRef<string>(OLLAMA_ENDPOINTS[0]);
 
   const checkHealth = useCallback(async (): Promise<boolean> => {
     setIsChecking(true);
     setError(null);
-    try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
 
-      if (!response.ok) {
-        throw new Error(`Ollama server returned status ${response.status}`);
+    for (const baseUrl of OLLAMA_ENDPOINTS) {
+      try {
+        const response = await fetch(`${baseUrl}/api/tags`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const modelNames = (data.models || []).map((m: OllamaModelInfo) => m.name);
+          setAvailableModels(modelNames);
+          setIsConnected(true);
+          setIsChecking(false);
+          activeEndpointRef.current = baseUrl;
+          return true;
+        }
+      } catch (err) {
+        // Try next fallback endpoint
       }
-
-      const data = await response.json();
-      const modelNames = (data.models || []).map((m: OllamaModelInfo) => m.name);
-      setAvailableModels(modelNames);
-      setIsConnected(true);
-      setIsChecking(false);
-      return true;
-    } catch (err) {
-      console.warn("Ollama connectivity check failed:", err);
-      setIsConnected(false);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Cannot connect to Ollama at localhost:11434"
-      );
-      setIsChecking(false);
-      return false;
     }
+
+    setIsConnected(false);
+    setError("Cannot connect to Ollama at 127.0.0.1:11434 or localhost:11434");
+    setIsChecking(false);
+    return false;
   }, []);
 
+  // Check health on mount and poll every 5 seconds so status updates automatically when Ollama starts
   useEffect(() => {
     checkHealth();
+    const interval = setInterval(checkHealth, 5000);
+    return () => clearInterval(interval);
   }, [checkHealth]);
 
   /**
-   * Send a chat request to Ollama.
-   * If stream is false, returns the complete response string.
-   * If stream is true and onChunk is provided, streams tokens as they arrive.
+   * Send a chat request to Ollama using active working endpoint.
    */
   const chat = useCallback(
     async (
@@ -88,7 +93,8 @@ export function useOllama() {
         body.format = format;
       }
 
-      const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      const baseUrl = activeEndpointRef.current;
+      const response = await fetch(`${baseUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -116,7 +122,6 @@ export function useOllama() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        // Keep incomplete trailing line in buffer
         buffer = lines.pop() || "";
 
         for (const line of lines) {
@@ -137,7 +142,6 @@ export function useOllama() {
         }
       }
 
-      // Process any remaining line in buffer
       if (buffer.trim()) {
         try {
           const parsed = JSON.parse(buffer.trim());

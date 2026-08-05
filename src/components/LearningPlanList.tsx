@@ -16,6 +16,9 @@ import {
   ChevronDown,
   ChevronUp,
   Target,
+  RotateCw,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 export default function LearningPlanList() {
@@ -27,6 +30,8 @@ export default function LearningPlanList() {
     selectFolder,
     scanFolder,
     markTaskCompletedAndRemoveFromDisk,
+    toggleDailyTask,
+    renewDailyRecurringTasks,
     unlockNextDay,
     lockDay,
     unlockNextWeek,
@@ -35,8 +40,8 @@ export default function LearningPlanList() {
 
   // State map to track collapsed state per section: key `${filePath}-${type}-${num}` -> boolean
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
-  // View mode tab state: "both" | "daily" | "weekly"
-  const [activeTab, setActiveTab] = useState<"both" | "daily" | "weekly">("both");
+  // View mode tab state: "both" | "daily" | "weekly" | "recurring"
+  const [activeTab, setActiveTab] = useState<"both" | "daily" | "weekly" | "recurring">("both");
 
   const toggleSectionCollapse = (key: string) => {
     setCollapsedMap((prev) => ({
@@ -77,6 +82,16 @@ export default function LearningPlanList() {
               All Entities
             </button>
             <button
+              onClick={() => setActiveTab("recurring")}
+              className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+                activeTab === "recurring"
+                  ? "bg-emerald-600 text-white shadow"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <RotateCw className="size-3" /> Daily Habits
+            </button>
+            <button
               onClick={() => setActiveTab("daily")}
               className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
                 activeTab === "daily"
@@ -84,7 +99,7 @@ export default function LearningPlanList() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Calendar className="size-3" /> Daily
+              <Calendar className="size-3" /> Daily Tasks
             </button>
             <button
               onClick={() => setActiveTab("weekly")}
@@ -137,12 +152,11 @@ export default function LearningPlanList() {
             <span>
               Displaying <strong className="text-foreground">{plans.length}</strong> active markdown plans simultaneously
             </span>
-            <span className="font-mono text-emerald-400">Day & Week Independent Tracking</span>
+            <span className="font-mono text-emerald-400">Daily Recurring Habits Enabled</span>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
             {plans.map(({ filePath, fileName, parsedPlan, unlockedDay, unlockedWeek }) => {
-              // Filter day and week sections
               const visibleDaySections = parsedPlan.daySections.filter(
                 (s) => s.number <= unlockedDay
               );
@@ -158,6 +172,7 @@ export default function LearningPlanList() {
 
               const showDaily = activeTab === "both" || activeTab === "daily";
               const showWeekly = activeTab === "both" || activeTab === "weekly";
+              const showRecurring = activeTab === "both" || activeTab === "recurring";
 
               return (
                 <div
@@ -274,6 +289,108 @@ export default function LearningPlanList() {
 
                   {/* Sections Display Grid */}
                   <div className="space-y-6">
+                    {/* 🔄 SPECIAL CASE: DAILY RECURRING HABITS (## Daily Day N:) */}
+                    {showRecurring && parsedPlan.dailyRecurringSections.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-emerald-500/30 pb-2">
+                          <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                            <RotateCw className="size-4 text-emerald-400" />
+                            Daily Recurring Habits & Trackers
+                          </h4>
+                          <span className="text-[11px] text-emerald-400/80 font-mono">
+                            Auto-renews to Day N+1 without line deletion
+                          </span>
+                        </div>
+
+                        {parsedPlan.dailyRecurringSections.map((section) => {
+                          const collapseKey = `${filePath}-recurring-${section.number}`;
+                          const isCollapsed = Boolean(collapsedMap[collapseKey]);
+                          const headerTitle = `Daily Day ${section.number}:${
+                            section.title ? ` ${section.title}` : ""
+                          }`;
+
+                          const allCompleted =
+                            section.tasks.length > 0 &&
+                            section.tasks.every((t) => t.done);
+
+                          return (
+                            <div
+                              key={`recurring-${section.number}`}
+                              className="border border-emerald-500/40 rounded-xl overflow-hidden bg-emerald-950/20 transition-all shadow-sm"
+                            >
+                              <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 select-none">
+                                <button
+                                  onClick={() => toggleSectionCollapse(collapseKey)}
+                                  className="flex items-center gap-2 text-xs font-bold text-emerald-400 hover:opacity-80 transition-opacity text-left"
+                                >
+                                  {isCollapsed ? (
+                                    <ChevronDown className="size-4 text-emerald-400/60" />
+                                  ) : (
+                                    <ChevronUp className="size-4 text-emerald-400/60" />
+                                  )}
+                                  <span>{headerTitle}</span>
+                                </button>
+
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[11px] text-emerald-300/70 font-mono">
+                                    {section.tasks.filter((t) => t.done).length}/
+                                    {section.tasks.length} filled
+                                  </span>
+
+                                  <Button
+                                    size="sm"
+                                    onClick={() => renewDailyRecurringTasks(filePath)}
+                                    className={`h-7 text-[11px] px-3 gap-1.5 font-bold transition-all ${
+                                      allCompleted
+                                        ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400 animate-pulse shadow-md"
+                                        : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30"
+                                    }`}
+                                    title="Advances header to ## Daily Day N+1: and resets checkboxes for tomorrow"
+                                  >
+                                    <RotateCw className="size-3" />
+                                    Renew for Day {section.number + 1}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {!isCollapsed && (
+                                <div className="p-4 divide-y divide-emerald-500/15">
+                                  {section.tasks.map((task) => (
+                                    <button
+                                      key={task.id}
+                                      onClick={() => toggleDailyTask(filePath, task.text)}
+                                      className="w-full py-2.5 flex items-center justify-between gap-3 text-xs text-left hover:bg-emerald-500/5 px-2 rounded-lg transition-colors"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {task.done ? (
+                                          <CheckSquare className="size-4 text-emerald-400 shrink-0" />
+                                        ) : (
+                                          <Square className="size-4 text-emerald-500/40 shrink-0" />
+                                        )}
+                                        <span
+                                          className={`font-medium ${
+                                            task.done
+                                              ? "line-through text-emerald-200/50"
+                                              : "text-emerald-100"
+                                          }`}
+                                        >
+                                          {task.text}
+                                        </span>
+                                      </div>
+
+                                      <span className="text-[10px] text-emerald-400/60 font-mono">
+                                        {task.done ? "Filled for Day " + section.number : "Click to check"}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/* WEEKLY OBJECTIVES SECTION */}
                     {showWeekly && parsedPlan.weekSections.length > 0 && (
                       <div className="space-y-3">
@@ -513,7 +630,7 @@ export default function LearningPlanList() {
               {folderPath ? "No Markdown Files Found in Folder" : "No Folder Selected"}
             </h3>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              Select your learning plans directory. Files with <code className="font-mono text-primary">## Day 1</code> and <code className="font-mono text-accent-app">## Week 1</code> will be parsed into independent daily and weekly tracks.
+              Select your learning plans directory. Supports <code className="font-mono text-emerald-400">## Daily Day 1:</code> recurring habits, <code className="font-mono text-primary">## Day 1</code> tasks, and <code className="font-mono text-accent-app">## Week 1</code> objectives.
             </p>
             <Button onClick={selectFolder} className="gap-2 font-semibold text-xs mt-2">
               <FolderOpen className="size-4" />

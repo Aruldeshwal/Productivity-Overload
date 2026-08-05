@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseLearningPlan, removeTaskFromMarkdown } from "./mdParser";
+import {
+  parseLearningPlan,
+  removeTaskFromMarkdown,
+  renewDailyTasksInMarkdown,
+} from "./mdParser";
 
 const sampleMarkdown = `---
 title: Rust & Tauri Mastery Plan
@@ -72,6 +76,16 @@ describe("mdParser", () => {
 
     expect(updated).not.toContain("Task 1");
     expect(updated).toContain("Task 2");
+  });
+
+  it("should renew daily recurring section header to Day N+1 and uncheck tasks", () => {
+    const dailyMd = `## Daily Day 1: Morning Habits\n- [x] Drink 1L Water\n- [x] 30m LeetCode`;
+    const renewed = renewDailyTasksInMarkdown(dailyMd);
+
+    expect(renewed).toContain("## Daily Day 2: Morning Habits");
+    expect(renewed).toContain("- [ ] Drink 1L Water");
+    expect(renewed).toContain("- [ ] 30m LeetCode");
+    expect(renewed).not.toContain("- [x]");
   });
 
   it("should handle markdown with no frontmatter gracefully", () => {

@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { parseLearningPlan, ParsedPlan, removeTaskFromMarkdown } from "@/utils/mdParser";
+import {
+  parseLearningPlan,
+  ParsedPlan,
+  removeTaskFromMarkdown,
+  renewDailyTasksInMarkdown,
+  toggleTaskInMarkdown,
+} from "@/utils/mdParser";
 import { parseAndPersistPlan } from "@/utils/planSync";
 import { useSQLite } from "@/hooks/useSQLite";
 
@@ -29,7 +35,6 @@ export function useFolderPlans() {
 
   const { insertProgressLog, isReady: dbReady } = useSQLite();
 
-  // Helper to load unlock state map from localStorage
   const getUnlockMap = (): UnlockStateMap => {
     try {
       const stored = localStorage.getItem(PLAN_UNLOCK_STORAGE_KEY);
@@ -45,7 +50,6 @@ export function useFolderPlans() {
     localStorage.setItem(PLAN_UNLOCK_STORAGE_KEY, JSON.stringify(map));
   };
 
-  // Scan folder and parse all .md files simultaneously
   const scanFolder = useCallback(
     async (targetFolderPath?: string) => {
       const path = targetFolderPath || folderPath;
@@ -115,7 +119,6 @@ export function useFolderPlans() {
     [folderPath, dbReady, insertProgressLog]
   );
 
-  // Select folder via native Tauri dialog picker
   const selectFolder = async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -182,6 +185,88 @@ export function useFolderPlans() {
       }
     } catch (err) {
       console.error(`Failed to update markdown file on disk (${filePath}):`, err);
+    }
+  };
+
+  // Toggle a Daily Recurring Task checkbox in memory and on disk without removing the line
+  const toggleDailyTask = async (filePath: string, taskText: string) => {
+    const targetPlanState = plans.find((p) => p.filePath === filePath);
+    if (!targetPlanState) return;
+
+    try {
+      const updatedMarkdown = toggleTaskInMarkdown(
+        targetPlanState.rawContent,
+        taskText
+      );
+
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      await writeTextFile(filePath, updatedMarkdown);
+
+      const reParsed = parseLearningPlan(
+        updatedMarkdown,
+        targetPlanState.fileName.replace(/\.md$/i, ""),
+        filePath,
+        targetPlanState.unlockedDay,
+        targetPlanState.unlockedWeek
+      );
+
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.filePath === filePath
+            ? {
+                ...p,
+                rawContent: updatedMarkdown,
+                parsedPlan: reParsed,
+              }
+            : p
+        )
+      );
+    } catch (err) {
+      console.error(`Failed to toggle daily task (${filePath}):`, err);
+    }
+  };
+
+  // Special Case Renewal: Advance header from ## Daily Day N: to ## Daily Day N+1: and reset checkboxes to [ ]
+  const renewDailyRecurringTasks = async (filePath: string) => {
+    const targetPlanState = plans.find((p) => p.filePath === filePath);
+    if (!targetPlanState) return;
+
+    try {
+      const updatedMarkdown = renewDailyTasksInMarkdown(targetPlanState.rawContent);
+
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      await writeTextFile(filePath, updatedMarkdown);
+
+      const reParsed = parseLearningPlan(
+        updatedMarkdown,
+        targetPlanState.fileName.replace(/\.md$/i, ""),
+        filePath,
+        targetPlanState.unlockedDay,
+        targetPlanState.unlockedWeek
+      );
+
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.filePath === filePath
+            ? {
+                ...p,
+                rawContent: updatedMarkdown,
+                parsedPlan: reParsed,
+              }
+            : p
+        )
+      );
+
+      if (dbReady && insertProgressLog) {
+        await insertProgressLog(
+          reParsed.name,
+          reParsed.completed,
+          reParsed.total,
+          reParsed.percentage
+        );
+      }
+    } catch (err) {
+      console.error(`Failed to renew daily recurring tasks on disk (${filePath}):`, err);
     }
   };
 
@@ -297,6 +382,8 @@ export function useFolderPlans() {
     selectFolder,
     scanFolder,
     markTaskCompletedAndRemoveFromDisk,
+    toggleDailyTask,
+    renewDailyRecurringTasks,
     unlockNextDay,
     lockDay,
     unlockNextWeek,

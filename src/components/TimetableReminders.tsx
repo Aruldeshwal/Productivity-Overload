@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, ChangeEvent } from "react";
 import { parseTimetable } from "@/utils/timeHelpers";
 import { useScheduler } from "@/hooks/useScheduler";
 import { notifyUser } from "@/utils/notificationHelpers";
@@ -13,9 +13,14 @@ import {
   CalendarDays,
   Tag,
   ArrowRight,
+  FolderOpen,
+  Edit3,
+  Check,
 } from "lucide-react";
 
-const SAMPLE_TIMETABLE_MARKDOWN = `
+const INITIAL_TIMETABLE_STORAGE_KEY = "productive_overload_timetable_markdown";
+
+const DEFAULT_TIMETABLE_MARKDOWN = `
 # Today's Timetable Schedule
 
 | Time | Activity / Task | Category | Status |
@@ -29,7 +34,14 @@ const SAMPLE_TIMETABLE_MARKDOWN = `
 `;
 
 export default function TimetableReminders() {
-  const [markdown] = useState<string>(SAMPLE_TIMETABLE_MARKDOWN);
+  const [markdown, setMarkdown] = useState<string>(() => {
+    return (
+      localStorage.getItem(INITIAL_TIMETABLE_STORAGE_KEY) ||
+      DEFAULT_TIMETABLE_MARKDOWN
+    );
+  });
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [openedFileName, setOpenedFileName] = useState<string | null>(null);
 
   const initialParsed = useMemo(() => parseTimetable(markdown), [markdown]);
 
@@ -45,11 +57,56 @@ export default function TimetableReminders() {
     initialSchedule: initialParsed,
   });
 
-  // Re-sync schedule when markdown input changes
+  // Re-sync schedule and persist when markdown changes
   useEffect(() => {
     const updated = parseTimetable(markdown);
     setSchedule(updated);
+    localStorage.setItem(INITIAL_TIMETABLE_STORAGE_KEY, markdown);
   }, [markdown, setSchedule]);
+
+  const handleOpenTimetableFile = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: "Markdown Timetable",
+            extensions: ["md", "markdown", "txt"],
+          },
+        ],
+      });
+
+      if (selected && typeof selected === "string") {
+        const fileContent = await readTextFile(selected);
+        const fileName = selected.split(/[\/\\]/).pop() || "Timetable File";
+        setOpenedFileName(fileName);
+        setMarkdown(fileContent);
+        return;
+      }
+    } catch (err) {
+      console.warn("Native file picker fallback:", err);
+    }
+
+    document.getElementById("hidden-timetable-input")?.click();
+  };
+
+  const handleHTMLFileInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text) {
+          setOpenedFileName(file.name);
+          setMarkdown(text);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
 
   const handleTestNotification = async () => {
     await notifyUser(
@@ -61,6 +118,14 @@ export default function TimetableReminders() {
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+      <input
+        id="hidden-timetable-input"
+        type="file"
+        accept=".md,.markdown,.txt"
+        onChange={handleHTMLFileInput}
+        className="hidden"
+      />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -75,17 +140,37 @@ export default function TimetableReminders() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <span className="text-xs text-muted-foreground">Current Time</span>
-            <div className="text-lg font-mono font-bold text-primary flex items-center gap-1">
-              <Clock className="size-4 text-accent-app" />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenTimetableFile}
+            className="gap-1.5 text-xs h-9"
+          >
+            <FolderOpen className="size-3.5 text-primary" />
+            {openedFileName ? openedFileName : "Open .md Timetable"}
+          </Button>
+
+          <Button
+            variant={isEditing ? "default" : "outline"}
+            size="sm"
+            onClick={() => setIsEditing(!isEditing)}
+            className="gap-1.5 text-xs h-9"
+          >
+            {isEditing ? <Check className="size-3.5" /> : <Edit3 className="size-3.5" />}
+            {isEditing ? "Save & Apply Schedule" : "Edit Raw Table"}
+          </Button>
+
+          <div className="text-right border-l border-border/60 pl-3">
+            <span className="text-[10px] text-muted-foreground">Current Time</span>
+            <div className="text-sm font-mono font-bold text-primary flex items-center gap-1">
+              <Clock className="size-3.5 text-accent-app" />
               {currentTime}
             </div>
           </div>
 
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={handleTestNotification}
             className="gap-1.5 text-xs h-9"
@@ -95,6 +180,29 @@ export default function TimetableReminders() {
           </Button>
         </div>
       </div>
+
+      {/* Raw Markdown Editor Area */}
+      {isEditing && (
+        <div className="bg-background border border-primary/40 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+              <Edit3 className="size-3.5" />
+              Markdown Table Schedule Format (| Time | Activity | Category |)
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Edits save automatically to local storage
+            </span>
+          </div>
+
+          <textarea
+            value={markdown}
+            onChange={(e) => setMarkdown(e.target.value)}
+            rows={8}
+            className="w-full font-mono text-xs p-3 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+            placeholder="| 09:00 | Deep Work Task | Category |"
+          />
+        </div>
+      )}
 
       {/* Active & Next Task Banner */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -5,6 +5,7 @@ import { useSQLite } from "@/hooks/useSQLite";
 import {
   buildQwenExtractionMessages,
   parseQwenResponse,
+  extractWithRetry,
   ExtractedReviewData,
   QWEN_MODEL_NAME,
 } from "@/utils/qwenExtractor";
@@ -57,15 +58,7 @@ export default function DayReviewForm({ onSubmitSuccess }: DayReviewFormProps) {
           (m) => m === QWEN_MODEL_NAME || m.includes("qwen") || m.includes("coder")
         ) || QWEN_MODEL_NAME;
 
-      const messages = buildQwenExtractionMessages(rawText);
-      const jsonResponse = await chat({
-        model: targetModel,
-        messages,
-        format: "json",
-        temperature: 0.2,
-      });
-
-      const data = parseQwenResponse(jsonResponse);
+      const data = await extractWithRetry(chat, targetModel, rawText);
       setExtractedData(data);
     } catch (err) {
       console.error("Qwen extraction error:", err);

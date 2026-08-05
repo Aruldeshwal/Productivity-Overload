@@ -3,6 +3,7 @@ import {
   parseLearningPlan,
   removeTaskFromMarkdown,
   renewDailyTasksInMarkdown,
+  checkAndCleanCompletedPhasesInMarkdown,
 } from "./mdParser";
 
 const sampleMarkdown = `---
@@ -53,21 +54,23 @@ describe("mdParser", () => {
     expect(result.percentage).toBe(45);
   });
 
-  it("should parse individual task items with correct done status", () => {
-    const result = parseLearningPlan(sampleMarkdown);
+  it("should parse Month sections as separate entities", () => {
+    const monthMd = `## Month 1: Architecture\n- [ ] Master Rust Systems\n## Month 2: Distributed Databases\n- [ ] Implement Raft`;
+    const result = parseLearningPlan(monthMd);
 
-    expect(result.tasks[0]).toEqual(
-      expect.objectContaining({
-        text: "Install Rust toolchain and cargo",
-        done: true,
-      })
-    );
-    expect(result.tasks[3]).toEqual(
-      expect.objectContaining({
-        text: "Understand Lifetimes and Smart Pointers",
-        done: false,
-      })
-    );
+    expect(result.monthSections.length).toBe(2);
+    expect(result.monthSections[0].title).toBe("Architecture");
+    expect(result.monthSections[1].title).toBe("Distributed Databases");
+  });
+
+  it("should clean up non-last Phase if Phase only has Daily tasks left, while keeping last Phase", () => {
+    const phaseMd = `## Phase 1: Foundations\n## Daily Day 1: Habits\n- [ ] Drink Water\n\n## Phase 2: Production\n## Day 1: Final Task\n- [ ] Finish Project`;
+    const cleaned = checkAndCleanCompletedPhasesInMarkdown(phaseMd);
+
+    // Phase 1 has only Daily tasks left, so Phase 1 is removed to advance to Phase 2
+    expect(cleaned).not.toContain("## Phase 1");
+    // Phase 2 is the last Phase, so it is preserved
+    expect(cleaned).toContain("## Phase 2: Production");
   });
 
   it("should remove completed task line from raw markdown string", () => {

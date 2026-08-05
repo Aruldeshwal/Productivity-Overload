@@ -16,10 +16,15 @@ export interface PlanFileState {
   parsedPlan: ParsedPlan;
   unlockedDay: number;
   unlockedWeek: number;
+  unlockedMonth: number;
 }
 
 interface UnlockStateMap {
-  [filePath: string]: { unlockedDay: number; unlockedWeek: number };
+  [filePath: string]: {
+    unlockedDay: number;
+    unlockedWeek: number;
+    unlockedMonth: number;
+  };
 }
 
 const FOLDER_PATH_STORAGE_KEY = "productive_overload_plans_folder";
@@ -44,9 +49,14 @@ export function useFolderPlans() {
     }
   };
 
-  const saveUnlockState = (filePath: string, day: number, week: number) => {
+  const saveUnlockState = (
+    filePath: string,
+    day: number,
+    week: number,
+    month: number
+  ) => {
     const map = getUnlockMap();
-    map[filePath] = { unlockedDay: day, unlockedWeek: week };
+    map[filePath] = { unlockedDay: day, unlockedWeek: week, unlockedMonth: month };
     localStorage.setItem(PLAN_UNLOCK_STORAGE_KEY, JSON.stringify(map));
   };
 
@@ -74,11 +84,15 @@ export function useFolderPlans() {
           try {
             const rawContent = await readTextFile(fileFullPath);
 
-            const fileState = unlockMap[fileFullPath] || { unlockedDay: 1, unlockedWeek: 1 };
-            const { unlockedDay, unlockedWeek } = fileState;
+            const fileState = unlockMap[fileFullPath] || {
+              unlockedDay: 1,
+              unlockedWeek: 1,
+              unlockedMonth: 1,
+            };
+            const { unlockedDay, unlockedWeek, unlockedMonth } = fileState;
 
             if (!(fileFullPath in unlockMap)) {
-              saveUnlockState(fileFullPath, 1, 1);
+              saveUnlockState(fileFullPath, 1, 1, 1);
             }
 
             const parsed = parseLearningPlan(
@@ -86,7 +100,8 @@ export function useFolderPlans() {
               entry.name.replace(/\.md$/i, ""),
               fileFullPath,
               unlockedDay,
-              unlockedWeek
+              unlockedWeek,
+              unlockedMonth
             );
 
             loadedPlans.push({
@@ -96,6 +111,7 @@ export function useFolderPlans() {
               parsedPlan: parsed,
               unlockedDay,
               unlockedWeek,
+              unlockedMonth,
             });
 
             if (dbReady && insertProgressLog) {
@@ -138,7 +154,6 @@ export function useFolderPlans() {
     }
   };
 
-  // Mark task completed & remove/strip it from the actual markdown file on disk!
   const markTaskCompletedAndRemoveFromDisk = async (
     filePath: string,
     taskText: string
@@ -160,7 +175,8 @@ export function useFolderPlans() {
         targetPlanState.fileName.replace(/\.md$/i, ""),
         filePath,
         targetPlanState.unlockedDay,
-        targetPlanState.unlockedWeek
+        targetPlanState.unlockedWeek,
+        targetPlanState.unlockedMonth
       );
 
       setPlans((prev) =>
@@ -188,7 +204,6 @@ export function useFolderPlans() {
     }
   };
 
-  // Toggle a Daily Recurring Task checkbox in memory and on disk without removing the line
   const toggleDailyTask = async (filePath: string, taskText: string) => {
     const targetPlanState = plans.find((p) => p.filePath === filePath);
     if (!targetPlanState) return;
@@ -207,7 +222,8 @@ export function useFolderPlans() {
         targetPlanState.fileName.replace(/\.md$/i, ""),
         filePath,
         targetPlanState.unlockedDay,
-        targetPlanState.unlockedWeek
+        targetPlanState.unlockedWeek,
+        targetPlanState.unlockedMonth
       );
 
       setPlans((prev) =>
@@ -226,7 +242,6 @@ export function useFolderPlans() {
     }
   };
 
-  // Special Case Renewal: Advance header from ## Daily Day N: to ## Daily Day N+1: and reset checkboxes to [ ]
   const renewDailyRecurringTasks = async (filePath: string) => {
     const targetPlanState = plans.find((p) => p.filePath === filePath);
     if (!targetPlanState) return;
@@ -242,7 +257,8 @@ export function useFolderPlans() {
         targetPlanState.fileName.replace(/\.md$/i, ""),
         filePath,
         targetPlanState.unlockedDay,
-        targetPlanState.unlockedWeek
+        targetPlanState.unlockedWeek,
+        targetPlanState.unlockedMonth
       );
 
       setPlans((prev) =>
@@ -270,20 +286,21 @@ export function useFolderPlans() {
     }
   };
 
-  // Day unlock / relock controls
+  // Day controls
   const unlockNextDay = (filePath: string) => {
     const target = plans.find((p) => p.filePath === filePath);
     if (!target) return;
 
     const nextDay = target.unlockedDay + 1;
-    saveUnlockState(filePath, nextDay, target.unlockedWeek);
+    saveUnlockState(filePath, nextDay, target.unlockedWeek, target.unlockedMonth);
 
     const reParsed = parseLearningPlan(
       target.rawContent,
       target.fileName.replace(/\.md$/i, ""),
       filePath,
       nextDay,
-      target.unlockedWeek
+      target.unlockedWeek,
+      target.unlockedMonth
     );
 
     setPlans((prev) =>
@@ -300,14 +317,15 @@ export function useFolderPlans() {
     if (!target) return;
 
     const newUnlockedDay = Math.max(1, targetDay);
-    saveUnlockState(filePath, newUnlockedDay, target.unlockedWeek);
+    saveUnlockState(filePath, newUnlockedDay, target.unlockedWeek, target.unlockedMonth);
 
     const reParsed = parseLearningPlan(
       target.rawContent,
       target.fileName.replace(/\.md$/i, ""),
       filePath,
       newUnlockedDay,
-      target.unlockedWeek
+      target.unlockedWeek,
+      target.unlockedMonth
     );
 
     setPlans((prev) =>
@@ -319,20 +337,21 @@ export function useFolderPlans() {
     );
   };
 
-  // Week unlock / relock controls
+  // Week controls
   const unlockNextWeek = (filePath: string) => {
     const target = plans.find((p) => p.filePath === filePath);
     if (!target) return;
 
     const nextWeek = target.unlockedWeek + 1;
-    saveUnlockState(filePath, target.unlockedDay, nextWeek);
+    saveUnlockState(filePath, target.unlockedDay, nextWeek, target.unlockedMonth);
 
     const reParsed = parseLearningPlan(
       target.rawContent,
       target.fileName.replace(/\.md$/i, ""),
       filePath,
       target.unlockedDay,
-      nextWeek
+      nextWeek,
+      target.unlockedMonth
     );
 
     setPlans((prev) =>
@@ -349,20 +368,72 @@ export function useFolderPlans() {
     if (!target) return;
 
     const newUnlockedWeek = Math.max(1, targetWeek);
-    saveUnlockState(filePath, target.unlockedDay, newUnlockedWeek);
+    saveUnlockState(filePath, target.unlockedDay, newUnlockedWeek, target.unlockedMonth);
 
     const reParsed = parseLearningPlan(
       target.rawContent,
       target.fileName.replace(/\.md$/i, ""),
       filePath,
       target.unlockedDay,
-      newUnlockedWeek
+      newUnlockedWeek,
+      target.unlockedMonth
     );
 
     setPlans((prev) =>
       prev.map((p) =>
         p.filePath === filePath
           ? { ...p, unlockedWeek: newUnlockedWeek, parsedPlan: reParsed }
+          : p
+      )
+    );
+  };
+
+  // Month controls
+  const unlockNextMonth = (filePath: string) => {
+    const target = plans.find((p) => p.filePath === filePath);
+    if (!target) return;
+
+    const nextMonth = target.unlockedMonth + 1;
+    saveUnlockState(filePath, target.unlockedDay, target.unlockedWeek, nextMonth);
+
+    const reParsed = parseLearningPlan(
+      target.rawContent,
+      target.fileName.replace(/\.md$/i, ""),
+      filePath,
+      target.unlockedDay,
+      target.unlockedWeek,
+      nextMonth
+    );
+
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.filePath === filePath
+          ? { ...p, unlockedMonth: nextMonth, parsedPlan: reParsed }
+          : p
+      )
+    );
+  };
+
+  const lockMonth = (filePath: string, targetMonth: number) => {
+    const target = plans.find((p) => p.filePath === filePath);
+    if (!target) return;
+
+    const newUnlockedMonth = Math.max(1, targetMonth);
+    saveUnlockState(filePath, target.unlockedDay, target.unlockedWeek, newUnlockedMonth);
+
+    const reParsed = parseLearningPlan(
+      target.rawContent,
+      target.fileName.replace(/\.md$/i, ""),
+      filePath,
+      target.unlockedDay,
+      target.unlockedWeek,
+      newUnlockedMonth
+    );
+
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.filePath === filePath
+          ? { ...p, unlockedMonth: newUnlockedMonth, parsedPlan: reParsed }
           : p
       )
     );
@@ -388,5 +459,7 @@ export function useFolderPlans() {
     lockDay,
     unlockNextWeek,
     lockWeek,
+    unlockNextMonth,
+    lockMonth,
   };
 }

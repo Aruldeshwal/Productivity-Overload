@@ -19,6 +19,7 @@ import {
   RotateCw,
   CheckSquare,
   Square,
+  Award,
 } from "lucide-react";
 
 export default function LearningPlanList() {
@@ -36,12 +37,14 @@ export default function LearningPlanList() {
     lockDay,
     unlockNextWeek,
     lockWeek,
+    unlockNextMonth,
+    lockMonth,
   } = useFolderPlans();
 
   // State map to track collapsed state per section: key `${filePath}-${type}-${num}` -> boolean
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
-  // View mode tab state: "both" | "daily" | "weekly" | "recurring"
-  const [activeTab, setActiveTab] = useState<"both" | "daily" | "weekly" | "recurring">("both");
+  // View mode tab state: "both" | "daily" | "weekly" | "monthly" | "recurring"
+  const [activeTab, setActiveTab] = useState<"both" | "daily" | "weekly" | "monthly" | "recurring">("both");
 
   const toggleSectionCollapse = (key: string) => {
     setCollapsedMap((prev) => ({
@@ -73,7 +76,7 @@ export default function LearningPlanList() {
           <div className="bg-secondary p-1 rounded-lg border border-border flex items-center gap-1 text-xs">
             <button
               onClick={() => setActiveTab("both")}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+              className={`px-2 py-1 rounded-md font-semibold transition-colors ${
                 activeTab === "both"
                   ? "bg-primary text-primary-foreground shadow"
                   : "text-muted-foreground hover:text-foreground"
@@ -83,7 +86,7 @@ export default function LearningPlanList() {
             </button>
             <button
               onClick={() => setActiveTab("recurring")}
-              className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+              className={`px-2 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
                 activeTab === "recurring"
                   ? "bg-emerald-600 text-white shadow"
                   : "text-muted-foreground hover:text-foreground"
@@ -93,23 +96,33 @@ export default function LearningPlanList() {
             </button>
             <button
               onClick={() => setActiveTab("daily")}
-              className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+              className={`px-2 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
                 activeTab === "daily"
                   ? "bg-primary text-primary-foreground shadow"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Calendar className="size-3" /> Daily Tasks
+              <Calendar className="size-3" /> Daily
             </button>
             <button
               onClick={() => setActiveTab("weekly")}
-              className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+              className={`px-2 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
                 activeTab === "weekly"
                   ? "bg-primary text-primary-foreground shadow"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Target className="size-3" /> Weekly
+            </button>
+            <button
+              onClick={() => setActiveTab("monthly")}
+              className={`px-2 py-1 rounded-md font-semibold flex items-center gap-1 transition-colors ${
+                activeTab === "monthly"
+                  ? "bg-purple-600 text-white shadow"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Award className="size-3" /> Monthly
             </button>
           </div>
 
@@ -152,474 +165,633 @@ export default function LearningPlanList() {
             <span>
               Displaying <strong className="text-foreground">{plans.length}</strong> active markdown plans simultaneously
             </span>
-            <span className="font-mono text-emerald-400">Daily Recurring Habits Enabled</span>
+            <span className="font-mono text-emerald-400">Phase Cleanup & Month Tracking Active</span>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
-            {plans.map(({ filePath, fileName, parsedPlan, unlockedDay, unlockedWeek }) => {
-              const visibleDaySections = parsedPlan.daySections.filter(
-                (s) => s.number <= unlockedDay
-              );
-              const visibleWeekSections = parsedPlan.weekSections.filter(
-                (s) => s.number <= unlockedWeek
-              );
+            {plans.map(
+              ({
+                filePath,
+                fileName,
+                parsedPlan,
+                unlockedDay,
+                unlockedWeek,
+                unlockedMonth,
+              }) => {
+                const visibleDaySections = parsedPlan.daySections.filter(
+                  (s) => s.number <= unlockedDay
+                );
+                const visibleWeekSections = parsedPlan.weekSections.filter(
+                  (s) => s.number <= unlockedWeek
+                );
+                const visibleMonthSections = parsedPlan.monthSections.filter(
+                  (s) => s.number <= unlockedMonth
+                );
 
-              const totalDays = parsedPlan.totalDays || 1;
-              const totalWeeks = parsedPlan.totalWeeks || 1;
+                const totalDays = parsedPlan.totalDays || 1;
+                const totalWeeks = parsedPlan.totalWeeks || 1;
+                const totalMonths = parsedPlan.totalMonths || 1;
 
-              const hasMoreDays = unlockedDay < totalDays;
-              const hasMoreWeeks = unlockedWeek < totalWeeks;
+                const hasMoreDays = unlockedDay < totalDays;
+                const hasMoreWeeks = unlockedWeek < totalWeeks;
+                const hasMoreMonths = unlockedMonth < totalMonths;
 
-              const showDaily = activeTab === "both" || activeTab === "daily";
-              const showWeekly = activeTab === "both" || activeTab === "weekly";
-              const showRecurring = activeTab === "both" || activeTab === "recurring";
+                const showDaily = activeTab === "both" || activeTab === "daily";
+                const showWeekly = activeTab === "both" || activeTab === "weekly";
+                const showMonthly = activeTab === "both" || activeTab === "monthly";
+                const showRecurring = activeTab === "both" || activeTab === "recurring";
 
-              return (
-                <div
-                  key={filePath}
-                  className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6"
-                >
-                  {/* Plan Card Header */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <FileText className="size-5 text-primary" />
-                        <h3 className="text-lg font-bold text-foreground">
-                          {parsedPlan.name}
-                        </h3>
-                        <span className="text-[11px] font-mono bg-secondary text-secondary-foreground border border-border/60 px-2 py-0.5 rounded">
-                          {fileName}
-                        </span>
-                      </div>
-                      {parsedPlan.description && (
-                        <p className="text-xs text-muted-foreground">
-                          {parsedPlan.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      {/* Day Tracker Badge */}
-                      <div className="flex items-center gap-1.5 bg-secondary/50 border border-border px-2.5 py-1 rounded-lg text-xs">
-                        <Calendar className="size-3.5 text-primary" />
-                        <span className="font-semibold text-foreground">
-                          Day {unlockedDay}/{totalDays}
-                        </span>
-                        {hasMoreDays && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => unlockNextDay(filePath)}
-                            className="h-5 text-[10px] px-1.5 gap-0.5 text-primary"
-                          >
-                            <Unlock className="size-2.5" /> +1
-                          </Button>
-                        )}
-                        {unlockedDay > 1 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => lockDay(filePath, unlockedDay - 1)}
-                            className="h-5 text-[10px] px-1.5 text-amber-400"
-                            title="Re-lock day"
-                          >
-                            <Lock className="size-2.5" />
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* Week Tracker Badge */}
-                      {parsedPlan.weekSections.length > 0 && (
-                        <div className="flex items-center gap-1.5 bg-secondary/50 border border-border px-2.5 py-1 rounded-lg text-xs">
-                          <Target className="size-3.5 text-accent-app" />
-                          <span className="font-semibold text-foreground">
-                            Week {unlockedWeek}/{totalWeeks}
+                return (
+                  <div
+                    key={filePath}
+                    className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6"
+                  >
+                    {/* Plan Card Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-5 text-primary" />
+                          <h3 className="text-lg font-bold text-foreground">
+                            {parsedPlan.name}
+                          </h3>
+                          <span className="text-[11px] font-mono bg-secondary text-secondary-foreground border border-border/60 px-2 py-0.5 rounded">
+                            {fileName}
                           </span>
-                          {hasMoreWeeks && (
+                        </div>
+                        {parsedPlan.description && (
+                          <p className="text-xs text-muted-foreground">
+                            {parsedPlan.description}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        {/* Day Tracker Badge */}
+                        <div className="flex items-center gap-1 bg-secondary/50 border border-border px-2 py-1 rounded-lg text-xs">
+                          <Calendar className="size-3 text-primary" />
+                          <span className="font-semibold text-foreground">
+                            Day {unlockedDay}/{totalDays}
+                          </span>
+                          {hasMoreDays && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => unlockNextWeek(filePath)}
-                              className="h-5 text-[10px] px-1.5 gap-0.5 text-accent-app"
+                              onClick={() => unlockNextDay(filePath)}
+                              className="h-5 text-[10px] px-1 text-primary"
                             >
                               <Unlock className="size-2.5" /> +1
                             </Button>
                           )}
-                          {unlockedWeek > 1 && (
+                          {unlockedDay > 1 && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => lockWeek(filePath, unlockedWeek - 1)}
-                              className="h-5 text-[10px] px-1.5 text-amber-400"
-                              title="Re-lock week"
+                              onClick={() => lockDay(filePath, unlockedDay - 1)}
+                              className="h-5 text-[10px] px-1 text-amber-400"
+                              title="Re-lock day"
                             >
                               <Lock className="size-2.5" />
                             </Button>
                           )}
                         </div>
+
+                        {/* Week Tracker Badge */}
+                        {parsedPlan.weekSections.length > 0 && (
+                          <div className="flex items-center gap-1 bg-secondary/50 border border-border px-2 py-1 rounded-lg text-xs">
+                            <Target className="size-3 text-accent-app" />
+                            <span className="font-semibold text-foreground">
+                              Week {unlockedWeek}/{totalWeeks}
+                            </span>
+                            {hasMoreWeeks && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => unlockNextWeek(filePath)}
+                                className="h-5 text-[10px] px-1 text-accent-app"
+                              >
+                                <Unlock className="size-2.5" /> +1
+                              </Button>
+                            )}
+                            {unlockedWeek > 1 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => lockWeek(filePath, unlockedWeek - 1)}
+                                className="h-5 text-[10px] px-1 text-amber-400"
+                                title="Re-lock week"
+                              >
+                                <Lock className="size-2.5" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Month Tracker Badge */}
+                        {parsedPlan.monthSections.length > 0 && (
+                          <div className="flex items-center gap-1 bg-secondary/50 border border-border px-2 py-1 rounded-lg text-xs">
+                            <Award className="size-3 text-purple-400" />
+                            <span className="font-semibold text-foreground">
+                              Month {unlockedMonth}/{totalMonths}
+                            </span>
+                            {hasMoreMonths && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => unlockNextMonth(filePath)}
+                                className="h-5 text-[10px] px-1 text-purple-400"
+                              >
+                                <Unlock className="size-2.5" /> +1
+                              </Button>
+                            )}
+                            {unlockedMonth > 1 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => lockMonth(filePath, unlockedMonth - 1)}
+                                className="h-5 text-[10px] px-1 text-amber-400"
+                                title="Re-lock month"
+                              >
+                                <Lock className="size-2.5" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Overall Progress Percentage */}
+                        <div className="text-right border-l border-border/60 pl-2">
+                          <div className="text-lg font-extrabold text-foreground flex items-center justify-end gap-0.5">
+                            <span>{parsedPlan.percentage}%</span>
+                            <Percent className="size-3 text-primary" />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {parsedPlan.completed}/{parsedPlan.total} done
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tags */}
+                    {parsedPlan.tags && parsedPlan.tags.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Tag className="size-3 text-muted-foreground" />
+                        {parsedPlan.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-[11px] font-medium bg-secondary text-secondary-foreground px-2 py-0.5 rounded border border-border/40"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Sections Display Grid */}
+                    <div className="space-y-6">
+                      {/* 🔄 DAILY RECURRING HABITS (## Daily Day N:) */}
+                      {showRecurring && parsedPlan.dailyRecurringSections.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-emerald-500/30 pb-2">
+                            <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                              <RotateCw className="size-4 text-emerald-400" />
+                              Daily Recurring Habits & Trackers
+                            </h4>
+                            <span className="text-[11px] text-emerald-400/80 font-mono">
+                              Auto-renews to Day N+1 without line deletion
+                            </span>
+                          </div>
+
+                          {parsedPlan.dailyRecurringSections.map((section) => {
+                            const collapseKey = `${filePath}-recurring-${section.number}`;
+                            const isCollapsed = Boolean(collapsedMap[collapseKey]);
+                            const headerTitle = `Daily Day ${section.number}:${
+                              section.title ? ` ${section.title}` : ""
+                            }`;
+
+                            const allCompleted =
+                              section.tasks.length > 0 &&
+                              section.tasks.every((t) => t.done);
+
+                            return (
+                              <div
+                                key={`recurring-${section.number}`}
+                                className="border border-emerald-500/40 rounded-xl overflow-hidden bg-emerald-950/20 transition-all shadow-sm"
+                              >
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 select-none">
+                                  <button
+                                    onClick={() => toggleSectionCollapse(collapseKey)}
+                                    className="flex items-center gap-2 text-xs font-bold text-emerald-400 hover:opacity-80 transition-opacity text-left"
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronDown className="size-4 text-emerald-400/60" />
+                                    ) : (
+                                      <ChevronUp className="size-4 text-emerald-400/60" />
+                                    )}
+                                    <span>{headerTitle}</span>
+                                  </button>
+
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-[11px] text-emerald-300/70 font-mono">
+                                      {section.tasks.filter((t) => t.done).length}/
+                                      {section.tasks.length} filled
+                                    </span>
+
+                                    <Button
+                                      size="sm"
+                                      onClick={() => renewDailyRecurringTasks(filePath)}
+                                      className={`h-7 text-[11px] px-3 gap-1.5 font-bold transition-all ${
+                                        allCompleted
+                                          ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400 animate-pulse shadow-md"
+                                          : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30"
+                                      }`}
+                                      title="Advances header to ## Daily Day N+1: and resets checkboxes for tomorrow"
+                                    >
+                                      <RotateCw className="size-3" />
+                                      Renew for Day {section.number + 1}
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                {!isCollapsed && (
+                                  <div className="p-4 divide-y divide-emerald-500/15">
+                                    {section.tasks.map((task) => (
+                                      <button
+                                        key={task.id}
+                                        onClick={() => toggleDailyTask(filePath, task.text)}
+                                        className="w-full py-2.5 flex items-center justify-between gap-3 text-xs text-left hover:bg-emerald-500/5 px-2 rounded-lg transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          {task.done ? (
+                                            <CheckSquare className="size-4 text-emerald-400 shrink-0" />
+                                          ) : (
+                                            <Square className="size-4 text-emerald-500/40 shrink-0" />
+                                          )}
+                                          <span
+                                            className={`font-medium ${
+                                              task.done
+                                                ? "line-through text-emerald-200/50"
+                                                : "text-emerald-100"
+                                            }`}
+                                          >
+                                            {task.text}
+                                          </span>
+                                        </div>
+
+                                        <span className="text-[10px] text-emerald-400/60 font-mono">
+                                          {task.done ? "Filled for Day " + section.number : "Click to check"}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
 
-                      {/* Overall Progress Percentage */}
-                      <div className="text-right border-l border-border/60 pl-3">
-                        <div className="text-xl font-extrabold text-foreground flex items-center justify-end gap-0.5">
-                          <span>{parsedPlan.percentage}%</span>
-                          <Percent className="size-3.5 text-primary" />
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          {parsedPlan.completed}/{parsedPlan.total} done
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                      {/* 🏆 MONTHLY MILESTONES (## Month 1) */}
+                      {showMonthly && parsedPlan.monthSections.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-purple-500/30 pb-2">
+                            <h4 className="text-sm font-bold text-purple-400 flex items-center gap-1.5">
+                              <Award className="size-4 text-purple-400" />
+                              Monthly Milestones
+                            </h4>
+                            <span className="text-[11px] text-purple-400/80 font-mono">
+                              {visibleMonthSections.length} of {totalMonths} months active
+                            </span>
+                          </div>
 
-                  {/* Tags */}
-                  {parsedPlan.tags && parsedPlan.tags.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Tag className="size-3 text-muted-foreground" />
-                      {parsedPlan.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-[11px] font-medium bg-secondary text-secondary-foreground px-2 py-0.5 rounded border border-border/40"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                          {visibleMonthSections.map((section) => {
+                            const collapseKey = `${filePath}-month-${section.number}`;
+                            const isCollapsed = Boolean(collapsedMap[collapseKey]);
+                            const headerTitle = `Month ${section.number}:${
+                              section.title ? ` ${section.title}` : ""
+                            }`;
 
-                  {/* Sections Display Grid */}
-                  <div className="space-y-6">
-                    {/* 🔄 SPECIAL CASE: DAILY RECURRING HABITS (## Daily Day N:) */}
-                    {showRecurring && parsedPlan.dailyRecurringSections.length > 0 && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between border-b border-emerald-500/30 pb-2">
-                          <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-                            <RotateCw className="size-4 text-emerald-400" />
-                            Daily Recurring Habits & Trackers
-                          </h4>
-                          <span className="text-[11px] text-emerald-400/80 font-mono">
-                            Auto-renews to Day N+1 without line deletion
-                          </span>
-                        </div>
-
-                        {parsedPlan.dailyRecurringSections.map((section) => {
-                          const collapseKey = `${filePath}-recurring-${section.number}`;
-                          const isCollapsed = Boolean(collapsedMap[collapseKey]);
-                          const headerTitle = `Daily Day ${section.number}:${
-                            section.title ? ` ${section.title}` : ""
-                          }`;
-
-                          const allCompleted =
-                            section.tasks.length > 0 &&
-                            section.tasks.every((t) => t.done);
-
-                          return (
-                            <div
-                              key={`recurring-${section.number}`}
-                              className="border border-emerald-500/40 rounded-xl overflow-hidden bg-emerald-950/20 transition-all shadow-sm"
-                            >
-                              <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 select-none">
-                                <button
-                                  onClick={() => toggleSectionCollapse(collapseKey)}
-                                  className="flex items-center gap-2 text-xs font-bold text-emerald-400 hover:opacity-80 transition-opacity text-left"
-                                >
-                                  {isCollapsed ? (
-                                    <ChevronDown className="size-4 text-emerald-400/60" />
-                                  ) : (
-                                    <ChevronUp className="size-4 text-emerald-400/60" />
-                                  )}
-                                  <span>{headerTitle}</span>
-                                </button>
-
-                                <div className="flex items-center gap-3">
-                                  <span className="text-[11px] text-emerald-300/70 font-mono">
-                                    {section.tasks.filter((t) => t.done).length}/
-                                    {section.tasks.length} filled
-                                  </span>
-
-                                  <Button
-                                    size="sm"
-                                    onClick={() => renewDailyRecurringTasks(filePath)}
-                                    className={`h-7 text-[11px] px-3 gap-1.5 font-bold transition-all ${
-                                      allCompleted
-                                        ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400 animate-pulse shadow-md"
-                                        : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30"
-                                    }`}
-                                    title="Advances header to ## Daily Day N+1: and resets checkboxes for tomorrow"
+                            return (
+                              <div
+                                key={`month-${section.number}`}
+                                className="border border-purple-500/30 rounded-xl overflow-hidden bg-purple-950/10 transition-all"
+                              >
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-purple-500/10 border-b border-purple-500/20 select-none">
+                                  <button
+                                    onClick={() => toggleSectionCollapse(collapseKey)}
+                                    className="flex items-center gap-2 text-xs font-bold text-purple-400 hover:opacity-80 transition-opacity text-left"
                                   >
-                                    <RotateCw className="size-3" />
-                                    Renew for Day {section.number + 1}
-                                  </Button>
-                                </div>
-                              </div>
+                                    {isCollapsed ? (
+                                      <ChevronDown className="size-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronUp className="size-4 text-muted-foreground" />
+                                    )}
+                                    <span>{headerTitle}</span>
+                                  </button>
 
-                              {!isCollapsed && (
-                                <div className="p-4 divide-y divide-emerald-500/15">
-                                  {section.tasks.map((task) => (
-                                    <button
-                                      key={task.id}
-                                      onClick={() => toggleDailyTask(filePath, task.text)}
-                                      className="w-full py-2.5 flex items-center justify-between gap-3 text-xs text-left hover:bg-emerald-500/5 px-2 rounded-lg transition-colors"
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        {task.done ? (
-                                          <CheckSquare className="size-4 text-emerald-400 shrink-0" />
-                                        ) : (
-                                          <Square className="size-4 text-emerald-500/40 shrink-0" />
-                                        )}
-                                        <span
-                                          className={`font-medium ${
-                                            task.done
-                                              ? "line-through text-emerald-200/50"
-                                              : "text-emerald-100"
-                                          }`}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-muted-foreground font-mono">
+                                      {section.tasks.length} milestones
+                                    </span>
+                                    {section.number === unlockedMonth && unlockedMonth > 1 && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => lockMonth(filePath, section.number - 1)}
+                                        className="h-6 text-[10px] px-2 gap-1 text-amber-400 hover:bg-amber-500/10"
+                                        title="Re-lock month"
+                                      >
+                                        <Lock className="size-3" /> Re-lock
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {!isCollapsed && (
+                                  <div className="p-4 divide-y divide-border/30">
+                                    {section.tasks.map((task) => (
+                                      <div
+                                        key={task.id}
+                                        className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                                      >
+                                        <div className="flex items-center gap-2.5">
+                                          <span className="size-2 rounded-full bg-purple-400 shrink-0"></span>
+                                          <span className="font-medium text-foreground">
+                                            {task.text}
+                                          </span>
+                                        </div>
+
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() =>
+                                            markTaskCompletedAndRemoveFromDisk(
+                                              filePath,
+                                              task.text
+                                            )
+                                          }
+                                          className="h-7 text-[11px] px-2.5 gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20"
                                         >
-                                          {task.text}
-                                        </span>
+                                          <CheckCircle2 className="size-3" />
+                                          <Trash2 className="size-3" />
+                                          Complete & Remove
+                                        </Button>
                                       </div>
-
-                                      <span className="text-[10px] text-emerald-400/60 font-mono">
-                                        {task.done ? "Filled for Day " + section.number : "Click to check"}
-                                      </span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* WEEKLY OBJECTIVES SECTION */}
-                    {showWeekly && parsedPlan.weekSections.length > 0 && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between border-b border-border/60 pb-2">
-                          <h4 className="text-sm font-bold text-accent-app flex items-center gap-1.5">
-                            <Target className="size-4 text-accent-app" />
-                            Weekly Objectives
-                          </h4>
-                          <span className="text-[11px] text-muted-foreground font-mono">
-                            {visibleWeekSections.length} of {totalWeeks} weeks active
-                          </span>
-                        </div>
-
-                        {visibleWeekSections.map((section) => {
-                          const collapseKey = `${filePath}-week-${section.number}`;
-                          const isCollapsed = Boolean(collapsedMap[collapseKey]);
-                          const headerTitle = `Week ${section.number}:${
-                            section.title ? ` ${section.title}` : ""
-                          }`;
-
-                          return (
-                            <div
-                              key={`week-${section.number}`}
-                              className="border border-accent-app/30 rounded-xl overflow-hidden bg-accent-app/5 transition-all"
-                            >
-                              <div className="flex items-center justify-between px-4 py-2.5 bg-accent-app/10 border-b border-accent-app/20 select-none">
-                                <button
-                                  onClick={() => toggleSectionCollapse(collapseKey)}
-                                  className="flex items-center gap-2 text-xs font-bold text-accent-app hover:opacity-80 transition-opacity text-left"
-                                >
-                                  {isCollapsed ? (
-                                    <ChevronDown className="size-4 text-muted-foreground" />
-                                  ) : (
-                                    <ChevronUp className="size-4 text-muted-foreground" />
-                                  )}
-                                  <span>{headerTitle}</span>
-                                </button>
-
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] text-muted-foreground font-mono">
-                                    {section.tasks.length} goals
-                                  </span>
-                                  {section.number === unlockedWeek && unlockedWeek > 1 && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => lockWeek(filePath, section.number - 1)}
-                                      className="h-6 text-[10px] px-2 gap-1 text-amber-400 hover:bg-amber-500/10"
-                                      title="Re-lock week"
-                                    >
-                                      <Lock className="size-3" /> Re-lock
-                                    </Button>
-                                  )}
-                                </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
+                            );
+                          })}
 
-                              {!isCollapsed && (
-                                <div className="p-4 divide-y divide-border/30">
-                                  {section.tasks.map((task) => (
-                                    <div
-                                      key={task.id}
-                                      className="py-2.5 flex items-center justify-between gap-3 text-xs"
-                                    >
-                                      <div className="flex items-center gap-2.5">
-                                        <span className="size-2 rounded-full bg-accent-app shrink-0"></span>
-                                        <span className="font-medium text-foreground">
-                                          {task.text}
-                                        </span>
-                                      </div>
-
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() =>
-                                          markTaskCompletedAndRemoveFromDisk(
-                                            filePath,
-                                            task.text
-                                          )
-                                        }
-                                        className="h-7 text-[11px] px-2.5 gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20"
-                                      >
-                                        <CheckCircle2 className="size-3" />
-                                        <Trash2 className="size-3" />
-                                        Complete & Remove
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        {hasMoreWeeks && (
-                          <div className="flex items-center justify-between p-3 bg-accent-app/5 border border-dashed border-accent-app/30 rounded-xl text-xs text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Lock className="size-4 text-amber-400" />
-                              <span>Weeks {unlockedWeek + 1} to {totalWeeks} locked</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => unlockNextWeek(filePath)}
-                              className="h-7 text-xs gap-1.5"
-                            >
-                              <Unlock className="size-3 text-accent-app" />
-                              Unlock Week {unlockedWeek + 1}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* EVERYDAY TASKS SECTION */}
-                    {showDaily && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between border-b border-border/60 pb-2">
-                          <h4 className="text-sm font-bold text-primary flex items-center gap-1.5">
-                            <Calendar className="size-4 text-primary" />
-                            Everyday Tasks
-                          </h4>
-                          <span className="text-[11px] text-muted-foreground font-mono">
-                            {visibleDaySections.length} of {totalDays} days active
-                          </span>
-                        </div>
-
-                        {visibleDaySections.map((section) => {
-                          const collapseKey = `${filePath}-day-${section.number}`;
-                          const isCollapsed = Boolean(collapsedMap[collapseKey]);
-                          const headerTitle = `Day ${section.number}:${
-                            section.title ? ` ${section.title}` : ""
-                          }`;
-
-                          return (
-                            <div
-                              key={`day-${section.number}`}
-                              className="border border-border/60 rounded-xl overflow-hidden bg-background/40 transition-all"
-                            >
-                              <div className="flex items-center justify-between px-4 py-2.5 bg-secondary/30 border-b border-border/40 select-none">
-                                <button
-                                  onClick={() => toggleSectionCollapse(collapseKey)}
-                                  className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary-light transition-colors text-left"
-                                >
-                                  {isCollapsed ? (
-                                    <ChevronDown className="size-4 text-muted-foreground" />
-                                  ) : (
-                                    <ChevronUp className="size-4 text-muted-foreground" />
-                                  )}
-                                  <span>{headerTitle}</span>
-                                </button>
-
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] text-muted-foreground font-mono">
-                                    {section.tasks.length} tasks
-                                  </span>
-                                  {section.number === unlockedDay && unlockedDay > 1 && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => lockDay(filePath, section.number - 1)}
-                                      className="h-6 text-[10px] px-2 gap-1 text-amber-400 hover:bg-amber-500/10"
-                                      title="Re-lock day"
-                                    >
-                                      <Lock className="size-3" /> Re-lock
-                                    </Button>
-                                  )}
-                                </div>
+                          {hasMoreMonths && (
+                            <div className="flex items-center justify-between p-3 bg-purple-500/5 border border-dashed border-purple-500/30 rounded-xl text-xs text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Lock className="size-4 text-amber-400" />
+                                <span>Months {unlockedMonth + 1} to {totalMonths} locked</span>
                               </div>
-
-                              {!isCollapsed && (
-                                <div className="p-4 divide-y divide-border/30">
-                                  {section.tasks.map((task) => (
-                                    <div
-                                      key={task.id}
-                                      className="py-2.5 flex items-center justify-between gap-3 text-xs"
-                                    >
-                                      <div className="flex items-center gap-2.5">
-                                        <span className="size-2 rounded-full bg-primary/60 shrink-0"></span>
-                                        <span className="font-medium text-foreground">
-                                          {task.text}
-                                        </span>
-                                      </div>
-
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() =>
-                                          markTaskCompletedAndRemoveFromDisk(
-                                            filePath,
-                                            task.text
-                                          )
-                                        }
-                                        className="h-7 text-[11px] px-2.5 gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20"
-                                      >
-                                        <CheckCircle2 className="size-3" />
-                                        <Trash2 className="size-3" />
-                                        Complete & Remove
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => unlockNextMonth(filePath)}
+                                className="h-7 text-xs gap-1.5"
+                              >
+                                <Unlock className="size-3 text-purple-400" />
+                                Unlock Month {unlockedMonth + 1}
+                              </Button>
                             </div>
-                          );
-                        })}
+                          )}
+                        </div>
+                      )}
 
-                        {hasMoreDays && (
-                          <div className="flex items-center justify-between p-3 bg-secondary/30 border border-dashed border-border/60 rounded-xl text-xs text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Lock className="size-4 text-amber-400" />
-                              <span>Days {unlockedDay + 1} to {totalDays} locked</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => unlockNextDay(filePath)}
-                              className="h-7 text-xs gap-1.5"
-                            >
-                              <Unlock className="size-3 text-primary" />
-                              Unlock Day {unlockedDay + 1}
-                            </Button>
+                      {/* WEEKLY OBJECTIVES SECTION */}
+                      {showWeekly && parsedPlan.weekSections.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                            <h4 className="text-sm font-bold text-accent-app flex items-center gap-1.5">
+                              <Target className="size-4 text-accent-app" />
+                              Weekly Objectives
+                            </h4>
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              {visibleWeekSections.length} of {totalWeeks} weeks active
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+
+                          {visibleWeekSections.map((section) => {
+                            const collapseKey = `${filePath}-week-${section.number}`;
+                            const isCollapsed = Boolean(collapsedMap[collapseKey]);
+                            const headerTitle = `Week ${section.number}:${
+                              section.title ? ` ${section.title}` : ""
+                            }`;
+
+                            return (
+                              <div
+                                key={`week-${section.number}`}
+                                className="border border-accent-app/30 rounded-xl overflow-hidden bg-accent-app/5 transition-all"
+                              >
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-accent-app/10 border-b border-accent-app/20 select-none">
+                                  <button
+                                    onClick={() => toggleSectionCollapse(collapseKey)}
+                                    className="flex items-center gap-2 text-xs font-bold text-accent-app hover:opacity-80 transition-opacity text-left"
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronDown className="size-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronUp className="size-4 text-muted-foreground" />
+                                    )}
+                                    <span>{headerTitle}</span>
+                                  </button>
+
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-muted-foreground font-mono">
+                                      {section.tasks.length} goals
+                                    </span>
+                                    {section.number === unlockedWeek && unlockedWeek > 1 && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => lockWeek(filePath, section.number - 1)}
+                                        className="h-6 text-[10px] px-2 gap-1 text-amber-400 hover:bg-amber-500/10"
+                                        title="Re-lock week"
+                                      >
+                                        <Lock className="size-3" /> Re-lock
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {!isCollapsed && (
+                                  <div className="p-4 divide-y divide-border/30">
+                                    {section.tasks.map((task) => (
+                                      <div
+                                        key={task.id}
+                                        className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                                      >
+                                        <div className="flex items-center gap-2.5">
+                                          <span className="size-2 rounded-full bg-accent-app shrink-0"></span>
+                                          <span className="font-medium text-foreground">
+                                            {task.text}
+                                          </span>
+                                        </div>
+
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() =>
+                                            markTaskCompletedAndRemoveFromDisk(
+                                              filePath,
+                                              task.text
+                                            )
+                                          }
+                                          className="h-7 text-[11px] px-2.5 gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20"
+                                        >
+                                          <CheckCircle2 className="size-3" />
+                                          <Trash2 className="size-3" />
+                                          Complete & Remove
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {hasMoreWeeks && (
+                            <div className="flex items-center justify-between p-3 bg-accent-app/5 border border-dashed border-accent-app/30 rounded-xl text-xs text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Lock className="size-4 text-amber-400" />
+                                <span>Weeks {unlockedWeek + 1} to {totalWeeks} locked</span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => unlockNextWeek(filePath)}
+                                className="h-7 text-xs gap-1.5"
+                              >
+                                <Unlock className="size-3 text-accent-app" />
+                                Unlock Week {unlockedWeek + 1}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* EVERYDAY TASKS SECTION */}
+                      {showDaily && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                            <h4 className="text-sm font-bold text-primary flex items-center gap-1.5">
+                              <Calendar className="size-4 text-primary" />
+                              Everyday Tasks
+                            </h4>
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              {visibleDaySections.length} of {totalDays} days active
+                            </span>
+                          </div>
+
+                          {visibleDaySections.map((section) => {
+                            const collapseKey = `${filePath}-day-${section.number}`;
+                            const isCollapsed = Boolean(collapsedMap[collapseKey]);
+                            const headerTitle = `Day ${section.number}:${
+                              section.title ? ` ${section.title}` : ""
+                            }`;
+
+                            return (
+                              <div
+                                key={`day-${section.number}`}
+                                className="border border-border/60 rounded-xl overflow-hidden bg-background/40 transition-all"
+                              >
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-secondary/30 border-b border-border/40 select-none">
+                                  <button
+                                    onClick={() => toggleSectionCollapse(collapseKey)}
+                                    className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary-light transition-colors text-left"
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronDown className="size-4 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronUp className="size-4 text-muted-foreground" />
+                                    )}
+                                    <span>{headerTitle}</span>
+                                  </button>
+
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-muted-foreground font-mono">
+                                      {section.tasks.length} tasks
+                                    </span>
+                                    {section.number === unlockedDay && unlockedDay > 1 && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => lockDay(filePath, section.number - 1)}
+                                        className="h-6 text-[10px] px-2 gap-1 text-amber-400 hover:bg-amber-500/10"
+                                        title="Re-lock day"
+                                      >
+                                        <Lock className="size-3" /> Re-lock
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {!isCollapsed && (
+                                  <div className="p-4 divide-y divide-border/30">
+                                    {section.tasks.map((task) => (
+                                      <div
+                                        key={task.id}
+                                        className="py-2.5 flex items-center justify-between gap-3 text-xs"
+                                      >
+                                        <div className="flex items-center gap-2.5">
+                                          <span className="size-2 rounded-full bg-primary/60 shrink-0"></span>
+                                          <span className="font-medium text-foreground">
+                                            {task.text}
+                                          </span>
+                                        </div>
+
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() =>
+                                            markTaskCompletedAndRemoveFromDisk(
+                                              filePath,
+                                              task.text
+                                            )
+                                          }
+                                          className="h-7 text-[11px] px-2.5 gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20"
+                                        >
+                                          <CheckCircle2 className="size-3" />
+                                          <Trash2 className="size-3" />
+                                          Complete & Remove
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {hasMoreDays && (
+                            <div className="flex items-center justify-between p-3 bg-secondary/30 border border-dashed border-border/60 rounded-xl text-xs text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Lock className="size-4 text-amber-400" />
+                                <span>Days {unlockedDay + 1} to {totalDays} locked</span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => unlockNextDay(filePath)}
+                                className="h-7 text-xs gap-1.5"
+                              >
+                                <Unlock className="size-3 text-primary" />
+                                Unlock Day {unlockedDay + 1}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              }
+            )}
           </div>
         </div>
       ) : (
@@ -630,7 +802,7 @@ export default function LearningPlanList() {
               {folderPath ? "No Markdown Files Found in Folder" : "No Folder Selected"}
             </h3>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              Select your learning plans directory. Supports <code className="font-mono text-emerald-400">## Daily Day 1:</code> recurring habits, <code className="font-mono text-primary">## Day 1</code> tasks, and <code className="font-mono text-accent-app">## Week 1</code> objectives.
+              Select your learning plans directory. Supports <code className="font-mono text-emerald-400">## Daily Day 1:</code>, <code className="font-mono text-primary">## Day 1</code>, <code className="font-mono text-accent-app">## Week 1</code>, and <code className="font-mono text-purple-400">## Month 1</code>.
             </p>
             <Button onClick={selectFolder} className="gap-2 font-semibold text-xs mt-2">
               <FolderOpen className="size-4" />

@@ -6,12 +6,12 @@ This guide outlines the standard format and structure for creating `.md` learnin
 
 ## 📋 Full Template (`sample_learning_plan.md`)
 
-Copy and paste the template below into any `.md` file to create a new learning plan with both **Weekly Objectives** and **Everyday Tasks**:
+Copy and paste the template below into any `.md` file to create a multi-entity learning plan with **Phases**, **Monthly Milestones**, **Weekly Objectives**, **Everyday Tasks**, and **Daily Habits**:
 
 ```markdown
 ---
 title: System Architecture & Distributed Systems
-description: 4-week intensive roadmap to master Rust, Tauri, SQLite, and local AI orchestration
+description: Multi-phase roadmap to master Rust, Tauri, SQLite, and local AI orchestration
 tags:
   - systems
   - rust
@@ -21,27 +21,27 @@ tags:
 
 # System Architecture & Distributed Systems
 
-## Week 1: Core Fundamentals & Rust Basics
-- [ ] Build a working CLI calculator using Rust clap and anyhow
-- [ ] Complete 15 LeetCode algorithms in Rust
+## Phase 1: Core Fundamentals
 
-## Day 1: Rust Toolchain & Ownership
+## Month 1: Rust & Systems Engineering
+- [ ] Complete 30 LeetCode algorithms in Rust
+
+## Week 1: Toolchain & Ownership
+- [ ] Build a working CLI calculator using Rust clap and anyhow
+
+## Daily Day 1: Habits
+- [x] Drink 1L Water
+- [ ] 30m Code Review
+
+## Day 1: Rust Toolchain & Borrowing
 - [x] Install Rust toolchain via rustup and configure VS Code rust-analyzer
 - [x] Master Ownership, Borrowing, and Lifetime rules
-- [ ] Understand Smart Pointers (Rc, Arc, RefCell, Mutex)
 
-## Day 2: Tauri v2 Desktop Shell
-- [x] Scaffold Tauri v2 desktop application with React and Vite
-- [x] Configure Tailwind CSS v4 design system and custom dark theme
+## Phase 2: Desktop Shell & Production Polish
+
+## Day 2: Tauri v2 & SQLite
+- [ ] Scaffold Tauri v2 desktop application with React and Vite
 - [ ] Initialize SQLite schema for progress snapshot tracking
-
-## Week 2: Local AI & Ollama Integration
-- [ ] Benchmark qwen2.5-coder:7b vs deepseek-r1:7b VRAM usage
-- [ ] Build end-of-day reflection review form
-
-## Day 3: Ollama HTTP Client
-- [ ] Set up Ollama HTTP bridge targeting localhost:11434
-- [ ] Stream DeepSeek-R1 <think> chain-of-thought tokens for weekly CBT reports
 ```
 
 ---
@@ -50,19 +50,16 @@ tags:
 
 | Element | Format / Syntax | Description |
 | --- | --- | --- |
-| **Weekly Objectives** | `## Week 1` or `## Week 1: High Level Goal` | Tracked separately in the **Weekly Objectives** section |
-| **Everyday Tasks** | `## Day 1` or `## Day 1: Specific Tasks` | Tracked separately in the **Everyday Tasks** section |
-| **YAML Frontmatter** | `---` block at top of file | Metadata extracted for title, description, and category tags |
-| **Title** | `title: "Your Plan Name"` | Plan name displayed on the dashboard header (overrides filename) |
-| **Description** | `description: "Short summary"` | Subtitle displayed under the plan header |
-| **Tags** | `tags:` list | Categorization tags shown as interactive pills (e.g., `#rust`, `#ai`) |
-| **Completed Task** | `- [x] Task name` | Counted as **completed** (increases completion percentage) |
-| **Incomplete Task** | `- [ ] Task name` | Counted as **pending** |
+| **Phases** | `## Phase 1` or `## Phase 1: Title` | When Phase N has only `## Daily` tasks left and Phase N+1 exists, Phase N gets cleaned up so you advance seamlessly. **Last Phase is guaranteed never to be removed**. |
+| **Monthly Milestones** | `## Month 1` or `## Month 1: Title` | Tracked separately in the **Monthly Milestones** section |
+| **Weekly Objectives** | `## Week 1` or `## Week 1: Title` | Tracked separately in the **Weekly Objectives** section |
+| **Everyday Tasks** | `## Day 1` or `## Day 1: Title` | Tracked separately in the **Everyday Tasks** section |
+| **Daily Habits** | `## Daily Day 1:` or `## Daily` | Special recurring section: tasks fill up without line deletion and auto-renew to Day N+1 |
 
 ---
 
 ## 💡 How Productive Overload Tracks Your Plan
 
-1. **Independent Trackers**: Everyday tasks (`## Day 1`) and Weekly goals (`## Week 1`) are parsed as distinct entities. You can unlock/re-lock Days and Weeks independently!
-2. **View Filtering**: Use the **All Entities / Daily / Weekly** toggle switches on top of the Learning Plans panel to isolate daily tasks or weekly goals.
-3. **Disk Removal on Completion**: Clicking **Complete & Remove** strips that task line directly from your physical `.md` file on disk while logging a progress snapshot to your local SQLite database (`progress_logs`).
+1. **Independent Trackers**: Everyday tasks (`## Day 1`), Weekly goals (`## Week 1`), and Monthly milestones (`## Month 1`) are parsed as distinct entities. You can unlock/re-lock Days, Weeks, and Months independently!
+2. **Phase Auto-Advancement**: When all one-off tasks in a Phase are completed, non-last Phases are automatically removed from the `.md` file on disk so you smoothly advance to the next Phase.
+3. **Last Phase Guarantee**: The final Phase in your file is protected and will never be removed, even if all tasks are complete.

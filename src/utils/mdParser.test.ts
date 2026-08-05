@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseLearningPlan } from "./mdParser";
+import { parseLearningPlan, removeTaskFromMarkdown } from "./mdParser";
 
 const sampleMarkdown = `---
 title: Rust & Tauri Mastery Plan
@@ -52,14 +52,26 @@ describe("mdParser", () => {
   it("should parse individual task items with correct done status", () => {
     const result = parseLearningPlan(sampleMarkdown);
 
-    expect(result.tasks[0]).toEqual({
-      text: "Install Rust toolchain and cargo",
-      done: true,
-    });
-    expect(result.tasks[3]).toEqual({
-      text: "Understand Lifetimes and Smart Pointers",
-      done: false,
-    });
+    expect(result.tasks[0]).toEqual(
+      expect.objectContaining({
+        text: "Install Rust toolchain and cargo",
+        done: true,
+      })
+    );
+    expect(result.tasks[3]).toEqual(
+      expect.objectContaining({
+        text: "Understand Lifetimes and Smart Pointers",
+        done: false,
+      })
+    );
+  });
+
+  it("should remove completed task line from raw markdown string", () => {
+    const original = `- [x] Task 1\n- [ ] Task 2`;
+    const updated = removeTaskFromMarkdown(original, "Task 1");
+
+    expect(updated).not.toContain("Task 1");
+    expect(updated).toContain("Task 2");
   });
 
   it("should handle markdown with no frontmatter gracefully", () => {

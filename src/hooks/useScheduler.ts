@@ -4,6 +4,7 @@ import {
   getCurrentTimeSlot,
   isTimeMatchingNow,
 } from "@/utils/timeHelpers";
+import { notifyUser } from "@/utils/notificationHelpers";
 
 export interface UseSchedulerOptions {
   initialSchedule?: ScheduleEntry[];
@@ -42,6 +43,15 @@ export function useScheduler({
         const notificationKey = `${entry.id}-${nowStr}`;
         if (!notifiedMap.current[notificationKey]) {
           notifiedMap.current[notificationKey] = nowStr;
+
+          // Trigger native desktop notification
+          const title = `Reminder (${entry.time}): ${entry.task}`;
+          const body = entry.category
+            ? `Category: ${entry.category} | Time: ${entry.time}`
+            : `Scheduled for ${entry.time}`;
+
+          notifyUser(title, body);
+
           if (onTriggerNotification) {
             onTriggerNotification(entry);
           }

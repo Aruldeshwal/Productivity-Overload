@@ -6,16 +6,18 @@
 
 ## Day 1 — Setup, Schema, Markdown Parsing
 
-_Checkpoint: Step 10_
+_Checkpoint: Step 10 (Completed Day 1 milestone)_
 
 ### Concepts to validate understanding of:
-- [ ] Tauri's IPC command/event model and its ACL-based capabilities security boundary
-- [ ] The hybrid-engineering pattern: deterministic code (regex) for anything that can be, non-deterministic LLM calls only where genuinely needed
-- [ ] How `tauri-plugin-sql` wraps SQLite operations behind an IPC bridge so React code calls JS APIs that internally invoke Rust
+- [x] Tauri's IPC command/event model and its ACL-based capabilities security boundary
+- [x] The hybrid-engineering pattern: deterministic code (regex) for anything that can be, non-deterministic LLM calls only where genuinely needed
+- [x] How `tauri-plugin-sql` wraps SQLite operations behind an IPC bridge so React code calls JS APIs that internally invoke Rust
 
 ### What I actually learned:
-- shadcn/ui requires `@/` path aliases configured in both `tsconfig.json` (for TypeScript) and `vite.config.ts` (for the bundler) — these are separate resolution systems that both need to agree
-- Tauri v2's `capabilities/default.json` is the compiled security boundary — permissions listed here are checked at the Rust layer, not in JavaScript
+- **Path Aliases configuration:** shadcn/ui requires `@/` path aliases configured in both `tsconfig.json` (for TypeScript static type checking) and `vite.config.ts` (for Vite module bundling).
+- **ACL Security Boundary:** Tauri v2 permissions in `capabilities/default.json` are compiled directly into Rust security scopes (`fs:allow-read-text-file`, `sql:default`, etc.).
+- **Hybrid Engineering Split:** Checklist completion and plan statistics execution via compiled regex runs in sub-milliseconds and avoids non-deterministic LLM latency or hallucinated counts.
+- **SQLite Persistence:** `tauri-plugin-sql` allows executing prepared SQL statements with parameter binding directly from custom React hooks while managing singletons and connection pools.
 
 ---
 

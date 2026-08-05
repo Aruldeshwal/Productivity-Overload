@@ -54,9 +54,12 @@
 - **Single model for both** — Use one model with different prompts. Simpler, but risks: JSON mode may corrupt chain-of-thought reasoning, or the model may not handle both structured and creative output well.
 - **Two specialized models** — Qwen2.5-Coder for strict JSON extraction (its JSON grammar constraint works cleanly), DeepSeek-R1 for free-form markdown CBT reports (its `<think>` reasoning is the value-add, and forcing JSON on it corrupts that output).
 
-**Decision:** _To be logged at Step 17 when implemented._
+**Decision:** Two specialized models: `qwen2.5-coder:7b` for structured JSON extraction, and `deepseek-r1:7b` for free-form markdown weekly CBT reports.
 
-**Consequences:** _To be filled._
+**Consequences:** 
+- Qwen2.5-Coder handles rigid JSON grammar (`format: "json"`) cleanly without leaking text or corrupting fields.
+- DeepSeek-R1 is kept strictly unconstrained (`format: null`), allowing its `<think>` chain-of-thought tokens to execute naturally without syntax grammar interference.
+- Trade-off: Model-swapping latency (~2–4s delay when Ollama switches weights in GPU VRAM), which we handle gracefully with UI loading states and retry logic.
 
 ---
 

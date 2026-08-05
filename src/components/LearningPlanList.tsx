@@ -153,6 +153,10 @@ export default function LearningPlanList() {
             ))}
           </div>
         )}
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+          <span>Auto-synchronized with SQLite database</span>
+          <span className="font-mono text-emerald-400">Snapshot Active</span>
+        </div>
       </div>
 
       {/* Task Checklist Panel */}

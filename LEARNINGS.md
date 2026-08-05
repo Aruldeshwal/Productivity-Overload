@@ -41,17 +41,20 @@ _Checkpoint: Step 19 (Completed Day 2 milestone)_
 
 ## Day 3 — Notifications, Scheduler, Dashboard
 
-_Checkpoint: Step 29_
+_Checkpoint: Step 29 (Completed Day 3 milestone)_
 
 ### Concepts to validate understanding of:
-- [ ] How native desktop notifications work through Tauri's plugin system vs. web Notification API
-- [ ] Throttling streamed state updates to prevent UI jank during long model responses
-- [ ] Recharts data flow and responsive chart configuration
+- [x] How native desktop notifications work through Tauri's plugin system vs. web Notification API
+- [x] Throttling streamed state updates to prevent UI jank during long model responses
+- [x] Recharts data flow and responsive chart configuration
 
 ### What I actually learned:
-_To be filled at Step 29._
+- **Tauri Native Notification ACL:** `@tauri-apps/plugin-notification` executes native OS notifications directly via Windows WinRT / macOS notification daemons, requiring explicit ACL capability permissions (`notification:allow-notify`) in `capabilities/default.json`.
+- **Interval Scheduler Deduplication:** A 30-second interval clock loop combined with a minute-keyed deduplication map (`${entry.id}-${nowStr}`) guarantees that scheduled task reminders trigger native notifications exactly once per time slot without duplicate spamming.
+- **Recharts Chart Customization:** Recharts `ResponsiveContainer`, `LineChart`, and `BarChart` require clean color mapping and dataset reversing (`[...data].reverse()`) so chronological trends render correctly from left to right.
 
 ---
 
 ## Gaps to fill next:
-- _To be identified during the build._
+- Integrate `nomic-embed-text` local embedding model for vector RAG over past reflections across multiple weeks.
+- Add SQLCipher database encryption at rest to protect sensitive daily reflections.

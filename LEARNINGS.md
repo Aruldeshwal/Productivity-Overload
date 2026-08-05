@@ -23,16 +23,19 @@ _Checkpoint: Step 10 (Completed Day 1 milestone)_
 
 ## Day 2 — Ollama Bridge & Reflective Workflows
 
-_Checkpoint: Step 19_
+_Checkpoint: Step 19 (Completed Day 2 milestone)_
 
 ### Concepts to validate understanding of:
-- [ ] Ollama's model-swapping behavior under limited VRAM and why that's an expected latency, not a bug
-- [ ] Why model specialization (structured vs. reasoning) beats using one "best" model for everything
-- [ ] SSE streaming and state-machine parsing for splitting `<think>` reasoning from the final answer
-- [ ] The clinical link between procrastination and emotional regulation, and how that shaped the CBT prompt
+- [x] Ollama's model-swapping behavior under limited VRAM and why that's an expected latency, not a bug
+- [x] Why model specialization (structured vs. reasoning) beats using one "best" model for everything
+- [x] SSE streaming and state-machine parsing for splitting `<think>` reasoning from the final answer
+- [x] The clinical link between procrastination and emotional regulation, and how that shaped the CBT prompt
 
 ### What I actually learned:
-_To be filled at Step 19._
+- **Model-Swapping VRAM Dynamics:** Ollama dynamically unloads weights when switching between `qwen2.5-coder:7b` and `deepseek-r1:7b`. This introduces a 1–3s latency spike on the first request, which requires client-side retry wrappers and exponential backoff.
+- **Two-Model Specialization:** Rigid JSON grammar constraints (`format: "json"`) work cleanly with Qwen for extracting metrics, but corrupt DeepSeek-R1's `<think>` chain-of-thought tokens. Leaving R1 unconstrained yields superior CBT reasoning.
+- **SSE Token Streaming & State Machine:** Parsing `<think>...</think>` tokens in real-time as chunks arrive via ReadableStream allows rendering DeepSeek's internal reasoning in a collapsible UI panel while streaming the final CBT report cleanly.
+- **CBT Prompting vs. Generic AI Fluff:** Effective CBT coaching requires explicit constraints (banning clichés like "try Pomodoro", requiring 3 specific cognitive reframing exercises based on user logs) to produce clinically useful output.
 
 ---
 

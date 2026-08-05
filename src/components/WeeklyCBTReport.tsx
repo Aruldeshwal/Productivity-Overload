@@ -17,6 +17,7 @@ import {
   AlertCircle,
   FileText,
   Lightbulb,
+  Radio,
 } from "lucide-react";
 
 export default function WeeklyCBTReport() {
@@ -24,9 +25,10 @@ export default function WeeklyCBTReport() {
   const { chat, isConnected, availableModels } = useOllama();
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [reportMarkdown, setReportMarkdown] = useState<string>("");
+  const [streamedRawOutput, setStreamedRawOutput] = useState<string>("");
   const [reasoning, setReasoning] = useState<string>("");
-  const [showCoT, setShowCoT] = useState<boolean>(false);
+  const [reportMarkdown, setReportMarkdown] = useState<string>("");
+  const [showCoT, setShowCoT] = useState<boolean>(true); // Auto-expand CoT during generation
   const [reviewsAnalyzed, setReviewsAnalyzed] = useState<DailyReview[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,14 +37,15 @@ export default function WeeklyCBTReport() {
     setError(null);
     setReasoning("");
     setReportMarkdown("");
+    setStreamedRawOutput("");
+    setShowCoT(true);
 
     try {
-      // Fetch 7-day review data from SQLite
       const { reviews, formattedLogSummary } = await get7DayWeeklyAggregation();
       setReviewsAnalyzed(reviews);
 
       if (reviews.length === 0) {
-        setError("No daily reviews found in the database. Please submit at least one daily reflection first.");
+        setError("No daily reviews found in SQLite database. Submit at least one daily reflection first.");
         setIsGenerating(false);
         return;
       }
@@ -54,20 +57,34 @@ export default function WeeklyCBTReport() {
 
       const messages = buildDeepSeekCBTMessages(formattedLogSummary);
 
-      // Low-level call to Ollama targeting DeepSeek-R1 (no JSON grammar format constraint)
-      const rawResponse = await chat({
-        model: targetModel,
-        messages,
-        temperature: 0.6,
-      });
+      let accumulatedText = "";
 
-      const parsed = parseDeepSeekResponse(rawResponse);
-      setReasoning(parsed.reasoning);
-      setReportMarkdown(parsed.report);
+      // Stream tokens in real-time from DeepSeek-R1
+      const finalRawText = await chat(
+        {
+          model: targetModel,
+          messages,
+          stream: true,
+          temperature: 0.6,
+        },
+        (chunkToken: string) => {
+          accumulatedText += chunkToken;
+          setStreamedRawOutput(accumulatedText);
 
-      // Save report into SQLite for the latest review entry
+          // Dynamically parse reasoning vs report during streaming
+          const liveParsed = parseDeepSeekResponse(accumulatedText);
+          setReasoning(liveParsed.reasoning);
+          setReportMarkdown(liveParsed.report);
+        }
+      );
+
+      const parsedFinal = parseDeepSeekResponse(finalRawText);
+      setReasoning(parsedFinal.reasoning);
+      setReportMarkdown(parsedFinal.report);
+
+      // Persist generated report to SQLite for latest entry
       if (reviews[0]?.review_date) {
-        await updateWeeklyCbtReport(reviews[0].review_date, parsed.report);
+        await updateWeeklyCbtReport(reviews[0].review_date, parsedFinal.report);
       }
     } catch (err) {
       console.error("DeepSeek-R1 CBT report generation error:", err);
@@ -102,8 +119,8 @@ export default function WeeklyCBTReport() {
         >
           {isGenerating ? (
             <>
-              <Loader2 className="size-4 animate-spin text-primary-light" />
-              Reasoning via DeepSeek-R1...
+              <Radio className="size-4 animate-pulse text-amber-400" />
+              Streaming DeepSeek-R1...
             </>
           ) : (
             <>
@@ -122,8 +139,21 @@ export default function WeeklyCBTReport() {
         </div>
       )}
 
+      {/* Live Streaming Indicator Bar */}
+      {isGenerating && (
+        <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg text-xs font-medium text-primary animate-pulse">
+          <div className="flex items-center gap-2">
+            <Loader2 className="size-4 animate-spin" />
+            <span>DeepSeek-R1 active: reasoning and streaming CBT report in real-time...</span>
+          </div>
+          <span className="font-mono text-[11px]">
+            {streamedRawOutput.length} tokens received
+          </span>
+        </div>
+      )}
+
       {/* Collapsible Chain-of-Thought (<think> reasoning) Section */}
-      {reasoning && (
+      {(reasoning || (isGenerating && streamedRawOutput.includes("<think>"))) && (
         <div className="border border-indigo-500/30 bg-indigo-950/20 rounded-lg overflow-hidden">
           <button
             onClick={() => setShowCoT(!showCoT)}
@@ -131,14 +161,17 @@ export default function WeeklyCBTReport() {
           >
             <div className="flex items-center gap-2">
               <Lightbulb className="size-4 text-amber-400 animate-pulse" />
-              <span>DeepSeek-R1 Internal Chain-of-Thought Reasoning (&lt;think&gt;)</span>
+              <span>
+                DeepSeek-R1 Internal Chain-of-Thought Reasoning (&lt;think&gt;)
+                {isGenerating && !reportMarkdown && " (reasoning in progress...)"}
+              </span>
             </div>
             {showCoT ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </button>
 
           {showCoT && (
             <div className="p-4 bg-black/40 text-xs font-mono text-indigo-200/90 whitespace-pre-wrap leading-relaxed border-t border-indigo-500/20 max-h-60 overflow-y-auto">
-              {reasoning}
+              {reasoning || "Analyzing behavioral patterns in daily reflections..."}
             </div>
           )}
         </div>
@@ -153,7 +186,7 @@ export default function WeeklyCBTReport() {
               Analyzed {reviewsAnalyzed.length} nightly reviews
             </span>
             <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-              <FileText className="size-3.5" /> Saved to SQLite
+              <FileText className="size-3.5" /> {isGenerating ? "Streaming to UI..." : "Saved to SQLite"}
             </span>
           </div>
 

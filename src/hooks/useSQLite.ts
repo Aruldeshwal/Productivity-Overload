@@ -167,6 +167,44 @@ export function useSQLite() {
     []
   );
 
+  // Specialized 7-day aggregation query for weekly CBT coaching reports
+  const get7DayWeeklyAggregation = useCallback(async (): Promise<{
+    reviews: DailyReview[];
+    formattedLogSummary: string;
+  }> => {
+    const db = await getDb();
+    const reviews: DailyReview[] = await db.select(
+      `SELECT * FROM daily_reviews
+       ORDER BY review_date DESC
+       LIMIT 7`
+    );
+
+    const formattedLogSummary = reviews
+      .map((r) => {
+        let delayed = "None";
+        let triggers = "None";
+        try {
+          if (r.delayed_activities) delayed = JSON.parse(r.delayed_activities).join(", ");
+        } catch (e) {
+          delayed = r.delayed_activities || "None";
+        }
+        try {
+          if (r.emotional_triggers) triggers = JSON.parse(r.emotional_triggers).join(", ");
+        } catch (e) {
+          triggers = r.emotional_triggers || "None";
+        }
+
+        return `### Date: ${r.review_date}
+- **Procrastination Severity**: ${r.procrastination_score ?? "N/A"}/10
+- **Delayed Activities**: ${delayed}
+- **Emotional Triggers**: ${triggers}
+- **Raw Reflection**: ${r.raw_text}`;
+      })
+      .join("\n\n");
+
+    return { reviews, formattedLogSummary };
+  }, []);
+
   // Update the weekly CBT report for a specific review
   const updateWeeklyCbtReport = useCallback(
     async (reviewDate: string, report: string) => {
@@ -198,6 +236,7 @@ export function useSQLite() {
     getProgressLogs,
     upsertDailyReview,
     getRecentReviews,
+    get7DayWeeklyAggregation,
     updateWeeklyCbtReport,
     getAllReviews,
   };

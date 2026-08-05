@@ -1,6 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { useOllama } from "@/hooks/useOllama";
+import { useSQLite } from "@/hooks/useSQLite";
 import {
   buildQwenExtractionMessages,
   parseQwenResponse,
@@ -16,25 +17,23 @@ import {
   CheckCircle2,
   BrainCircuit,
   Loader2,
+  Database,
 } from "lucide-react";
 
 export interface DayReviewFormProps {
-  onSubmit?: (
-    reviewDate: string,
-    rawText: string,
-    extractedData?: ExtractedReviewData
-  ) => void;
-  isSubmitting?: boolean;
+  onSubmitSuccess?: (reviewDate: string) => void;
 }
 
-export default function DayReviewForm({
-  onSubmit,
-  isSubmitting: externalSubmitting = false,
-}: DayReviewFormProps) {
+export default function DayReviewForm({ onSubmitSuccess }: DayReviewFormProps) {
   const todayStr = new Date().toISOString().split("T")[0];
   const [reviewDate, setReviewDate] = useState<string>(todayStr);
   const [rawText, setRawText] = useState<string>("");
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // SQLite database operations
+  const { upsertDailyReview, isReady: dbReady } = useSQLite();
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
   // AI Extraction state
   const { chat, isConnected, availableModels } = useOllama();
@@ -53,7 +52,6 @@ export default function DayReviewForm({
     setValidationError(null);
 
     try {
-      // Check if qwen model exists in availableModels, or use first available model as fallback
       const targetModel =
         availableModels.find(
           (m) => m === QWEN_MODEL_NAME || m.includes("qwen") || m.includes("coder")
@@ -64,7 +62,7 @@ export default function DayReviewForm({
         model: targetModel,
         messages,
         format: "json",
-        temperature: 0.2, // Low temperature for deterministic JSON extraction
+        temperature: 0.2,
       });
 
       const data = parseQwenResponse(jsonResponse);
@@ -87,10 +85,13 @@ export default function DayReviewForm({
     }
 
     setValidationError(null);
+    setIsSaving(true);
+    setSaveSuccess(false);
 
-    let dataToSubmit = extractedData;
-    // If not extracted yet and Ollama is connected, attempt quick extraction before submission
-    if (!dataToSubmit && isConnected) {
+    let dataToSave = extractedData;
+
+    // Auto-extract with Qwen on submit if connected and not yet extracted
+    if (!dataToSave && isConnected) {
       try {
         const targetModel =
           availableModels.find(
@@ -104,19 +105,40 @@ export default function DayReviewForm({
           format: "json",
           temperature: 0.2,
         });
-        dataToSubmit = parseQwenResponse(jsonResponse);
-        setExtractedData(dataToSubmit);
+        dataToSave = parseQwenResponse(jsonResponse);
+        setExtractedData(dataToSave);
       } catch (err) {
         console.warn("Auto-extraction on submit failed:", err);
       }
     }
 
-    if (onSubmit) {
-      onSubmit(reviewDate, rawText.trim(), dataToSubmit || undefined);
+    try {
+      await upsertDailyReview(
+        reviewDate,
+        rawText.trim(),
+        dataToSave?.procrastination_severity,
+        dataToSave?.delayed_tasks,
+        dataToSave?.emotional_triggers
+      );
+
+      setSaveSuccess(true);
+      if (onSubmitSuccess) {
+        onSubmitSuccess(reviewDate);
+      }
+
+      // Hide success message after 4 seconds
+      setTimeout(() => setSaveSuccess(false), 4000);
+    } catch (err) {
+      console.error("Failed to save daily review to SQLite:", err);
+      setValidationError(
+        err instanceof Error ? err.message : "Failed to save reflection to SQLite database."
+      );
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const isProcessing = isExtracting || externalSubmitting;
+  const isProcessing = isExtracting || isSaving;
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
@@ -127,7 +149,7 @@ export default function DayReviewForm({
             End-of-Day Reflection
           </h2>
           <p className="text-sm text-muted-foreground">
-            Record your daily progress and extract structured behavioral signal using Qwen2.5-Coder.
+            Record daily progress, extract Qwen AI behavioral signals, and persist to SQLite.
           </p>
         </div>
       </div>
@@ -258,6 +280,14 @@ export default function DayReviewForm({
           </div>
         )}
 
+        {/* Save Success Alert */}
+        {saveSuccess && (
+          <div className="flex items-center gap-2 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg animate-in fade-in-50 duration-200">
+            <Database className="size-4 shrink-0 text-emerald-400" />
+            <span>Reflection & structured AI data successfully saved to SQLite!</span>
+          </div>
+        )}
+
         {/* Error Messages */}
         {validationError && (
           <div className="flex items-center gap-2 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded-lg">
@@ -276,16 +306,25 @@ export default function DayReviewForm({
         {/* Form Submit */}
         <div className="flex items-center justify-between pt-2">
           <p className="text-xs text-muted-foreground italic">
-            100% local Ollama inference. No cloud calls.
+            Saved to daily_reviews table in database.db
           </p>
 
           <Button
             type="submit"
-            disabled={isProcessing || !rawText.trim()}
+            disabled={isProcessing || !rawText.trim() || !dbReady}
             className="gap-2 font-medium"
           >
-            <Send className="size-4" />
-            {externalSubmitting ? "Saving..." : "Save Reflection"}
+            {isSaving ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Saving to SQLite...
+              </>
+            ) : (
+              <>
+                <Send className="size-4" />
+                Save Reflection
+              </>
+            )}
           </Button>
         </div>
       </form>

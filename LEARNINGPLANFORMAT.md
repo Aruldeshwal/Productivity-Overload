@@ -6,12 +6,12 @@ This guide outlines the standard format and structure for creating `.md` learnin
 
 ## 📋 Full Template (`sample_learning_plan.md`)
 
-Copy and paste the template below into any `.md` file to create a new learning plan:
+Copy and paste the template below into any `.md` file to create a new learning plan with both **Weekly Objectives** and **Everyday Tasks**:
 
 ```markdown
 ---
 title: System Architecture & Distributed Systems
-description: 6-week intensive roadmap to master Rust, Tauri, SQLite, and local AI orchestration
+description: 4-week intensive roadmap to master Rust, Tauri, SQLite, and local AI orchestration
 tags:
   - systems
   - rust
@@ -21,28 +21,27 @@ tags:
 
 # System Architecture & Distributed Systems
 
-## Phase 1: Core Fundamentals & Rust Basics
+## Week 1: Core Fundamentals & Rust Basics
+- [ ] Build a working CLI calculator using Rust clap and anyhow
+- [ ] Complete 15 LeetCode algorithms in Rust
+
+## Day 1: Rust Toolchain & Ownership
 - [x] Install Rust toolchain via rustup and configure VS Code rust-analyzer
 - [x] Master Ownership, Borrowing, and Lifetime rules
-- [x] Implement CLI calculator using clap and anyhow
 - [ ] Understand Smart Pointers (Rc, Arc, RefCell, Mutex)
 
-## Phase 2: Desktop Shell & Local Database
+## Day 2: Tauri v2 Desktop Shell
 - [x] Scaffold Tauri v2 desktop application with React and Vite
 - [x] Configure Tailwind CSS v4 design system and custom dark theme
-- [x] Initialize SQLite schema for progress snapshot tracking
-- [ ] Implement background 30-second interval scheduler for reminders
+- [ ] Initialize SQLite schema for progress snapshot tracking
 
-## Phase 3: Local AI & Ollama Integration
-- [x] Set up Ollama HTTP bridge targeting localhost:11434
-- [ ] Prompt engineer qwen2.5-coder:7b for structured JSON extraction
+## Week 2: Local AI & Ollama Integration
+- [ ] Benchmark qwen2.5-coder:7b vs deepseek-r1:7b VRAM usage
+- [ ] Build end-of-day reflection review form
+
+## Day 3: Ollama HTTP Client
+- [ ] Set up Ollama HTTP bridge targeting localhost:11434
 - [ ] Stream DeepSeek-R1 <think> chain-of-thought tokens for weekly CBT reports
-- [ ] Measure idle memory footprint vs Electron baseline
-
-## Phase 4: Production Polish & Security
-- [ ] Scope ACL capability permissions in src-tauri/capabilities/default.json
-- [ ] Add unit test suite for markdown checklist regex parser
-- [ ] Build production distribution installer via npm run tauri build
 ```
 
 ---
@@ -51,18 +50,19 @@ tags:
 
 | Element | Format / Syntax | Description |
 | --- | --- | --- |
+| **Weekly Objectives** | `## Week 1` or `## Week 1: High Level Goal` | Tracked separately in the **Weekly Objectives** section |
+| **Everyday Tasks** | `## Day 1` or `## Day 1: Specific Tasks` | Tracked separately in the **Everyday Tasks** section |
 | **YAML Frontmatter** | `---` block at top of file | Metadata extracted for title, description, and category tags |
 | **Title** | `title: "Your Plan Name"` | Plan name displayed on the dashboard header (overrides filename) |
 | **Description** | `description: "Short summary"` | Subtitle displayed under the plan header |
 | **Tags** | `tags:` list | Categorization tags shown as interactive pills (e.g., `#rust`, `#ai`) |
 | **Completed Task** | `- [x] Task name` | Counted as **completed** (increases completion percentage) |
 | **Incomplete Task** | `- [ ] Task name` | Counted as **pending** |
-| **Sections / Modules** | `## Phase 1` or `### Module` | Header formatting used for structural organization |
 
 ---
 
-## 💡 How Productive Overload Parses Your File
+## 💡 How Productive Overload Tracks Your Plan
 
-1. **Microsecond Regex Engine**: `mdParser.ts` uses compiled regex to count `- [x]` vs `- [ ]` checkboxes in sub-milliseconds without LLM overhead.
-2. **Interactive Toggling**: Clicking a checkbox inside the app updates the markdown state in memory and persists a progress snapshot into your local SQLite database (`progress_logs`).
-3. **Flexible Bullets**: Both `- [ ]` and `* [ ]` bullet formats are fully supported.
+1. **Independent Trackers**: Everyday tasks (`## Day 1`) and Weekly goals (`## Week 1`) are parsed as distinct entities. You can unlock/re-lock Days and Weeks independently!
+2. **View Filtering**: Use the **All Entities / Daily / Weekly** toggle switches on top of the Learning Plans panel to isolate daily tasks or weekly goals.
+3. **Disk Removal on Completion**: Clicking **Complete & Remove** strips that task line directly from your physical `.md` file on disk while logging a progress snapshot to your local SQLite database (`progress_logs`).

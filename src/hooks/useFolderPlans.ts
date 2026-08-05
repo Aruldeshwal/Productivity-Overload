@@ -9,10 +9,15 @@ export interface PlanFileState {
   rawContent: string;
   parsedPlan: ParsedPlan;
   unlockedDay: number;
+  unlockedWeek: number;
+}
+
+interface UnlockStateMap {
+  [filePath: string]: { unlockedDay: number; unlockedWeek: number };
 }
 
 const FOLDER_PATH_STORAGE_KEY = "productive_overload_plans_folder";
-const PLAN_DAY_UNLOCKED_STORAGE_KEY = "productive_overload_plan_days";
+const PLAN_UNLOCK_STORAGE_KEY = "productive_overload_plan_unlock_states";
 
 export function useFolderPlans() {
   const [folderPath, setFolderPath] = useState<string | null>(() => {
@@ -24,20 +29,20 @@ export function useFolderPlans() {
 
   const { insertProgressLog, isReady: dbReady } = useSQLite();
 
-  // Helper to load day unlock tracking map from localStorage
-  const getUnlockedDayMap = (): Record<string, number> => {
+  // Helper to load unlock state map from localStorage
+  const getUnlockMap = (): UnlockStateMap => {
     try {
-      const stored = localStorage.getItem(PLAN_DAY_UNLOCKED_STORAGE_KEY);
+      const stored = localStorage.getItem(PLAN_UNLOCK_STORAGE_KEY);
       return stored ? JSON.parse(stored) : {};
     } catch {
       return {};
     }
   };
 
-  const saveUnlockedDay = (filePath: string, day: number) => {
-    const map = getUnlockedDayMap();
-    map[filePath] = day;
-    localStorage.setItem(PLAN_DAY_UNLOCKED_STORAGE_KEY, JSON.stringify(map));
+  const saveUnlockState = (filePath: string, day: number, week: number) => {
+    const map = getUnlockMap();
+    map[filePath] = { unlockedDay: day, unlockedWeek: week };
+    localStorage.setItem(PLAN_UNLOCK_STORAGE_KEY, JSON.stringify(map));
   };
 
   // Scan folder and parse all .md files simultaneously
@@ -57,7 +62,7 @@ export function useFolderPlans() {
           (e) => e.name && (e.name.endsWith(".md") || e.name.endsWith(".markdown"))
         );
 
-        const unlockedMap = getUnlockedDayMap();
+        const unlockMap = getUnlockMap();
         const loadedPlans: PlanFileState[] = [];
 
         for (const entry of mdEntries) {
@@ -65,19 +70,19 @@ export function useFolderPlans() {
           try {
             const rawContent = await readTextFile(fileFullPath);
 
-            // New file that hasn't been opened before -> starts at Day 1
-            const isNewFile = !(fileFullPath in unlockedMap);
-            const unlockedDay = isNewFile ? 1 : unlockedMap[fileFullPath] || 1;
+            const fileState = unlockMap[fileFullPath] || { unlockedDay: 1, unlockedWeek: 1 };
+            const { unlockedDay, unlockedWeek } = fileState;
 
-            if (isNewFile) {
-              saveUnlockedDay(fileFullPath, 1);
+            if (!(fileFullPath in unlockMap)) {
+              saveUnlockState(fileFullPath, 1, 1);
             }
 
             const parsed = parseLearningPlan(
               rawContent,
               entry.name.replace(/\.md$/i, ""),
               fileFullPath,
-              unlockedDay
+              unlockedDay,
+              unlockedWeek
             );
 
             loadedPlans.push({
@@ -86,9 +91,9 @@ export function useFolderPlans() {
               rawContent,
               parsedPlan: parsed,
               unlockedDay,
+              unlockedWeek,
             });
 
-            // Persist initial progress snapshot to SQLite
             if (dbReady && insertProgressLog) {
               parseAndPersistPlan(rawContent, parsed.name, insertProgressLog).catch(
                 () => {}
@@ -144,16 +149,15 @@ export function useFolderPlans() {
         taskText
       );
 
-      // Write updated content back to physical file on disk via Tauri FS
       const { writeTextFile } = await import("@tauri-apps/plugin-fs");
       await writeTextFile(filePath, updatedMarkdown);
 
-      // Re-parse updated markdown
       const reParsed = parseLearningPlan(
         updatedMarkdown,
         targetPlanState.fileName.replace(/\.md$/i, ""),
         filePath,
-        targetPlanState.unlockedDay
+        targetPlanState.unlockedDay,
+        targetPlanState.unlockedWeek
       );
 
       setPlans((prev) =>
@@ -168,7 +172,6 @@ export function useFolderPlans() {
         )
       );
 
-      // Persist snapshot to SQLite
       if (dbReady && insertProgressLog) {
         await insertProgressLog(
           reParsed.name,
@@ -182,19 +185,20 @@ export function useFolderPlans() {
     }
   };
 
-  // Unlock next day for a plan
+  // Day unlock / relock controls
   const unlockNextDay = (filePath: string) => {
     const target = plans.find((p) => p.filePath === filePath);
     if (!target) return;
 
     const nextDay = target.unlockedDay + 1;
-    saveUnlockedDay(filePath, nextDay);
+    saveUnlockState(filePath, nextDay, target.unlockedWeek);
 
     const reParsed = parseLearningPlan(
       target.rawContent,
       target.fileName.replace(/\.md$/i, ""),
       filePath,
-      nextDay
+      nextDay,
+      target.unlockedWeek
     );
 
     setPlans((prev) =>
@@ -206,25 +210,74 @@ export function useFolderPlans() {
     );
   };
 
-  // Re-lock or set unlocked day back down
   const lockDay = (filePath: string, targetDay: number) => {
     const target = plans.find((p) => p.filePath === filePath);
     if (!target) return;
 
     const newUnlockedDay = Math.max(1, targetDay);
-    saveUnlockedDay(filePath, newUnlockedDay);
+    saveUnlockState(filePath, newUnlockedDay, target.unlockedWeek);
 
     const reParsed = parseLearningPlan(
       target.rawContent,
       target.fileName.replace(/\.md$/i, ""),
       filePath,
-      newUnlockedDay
+      newUnlockedDay,
+      target.unlockedWeek
     );
 
     setPlans((prev) =>
       prev.map((p) =>
         p.filePath === filePath
           ? { ...p, unlockedDay: newUnlockedDay, parsedPlan: reParsed }
+          : p
+      )
+    );
+  };
+
+  // Week unlock / relock controls
+  const unlockNextWeek = (filePath: string) => {
+    const target = plans.find((p) => p.filePath === filePath);
+    if (!target) return;
+
+    const nextWeek = target.unlockedWeek + 1;
+    saveUnlockState(filePath, target.unlockedDay, nextWeek);
+
+    const reParsed = parseLearningPlan(
+      target.rawContent,
+      target.fileName.replace(/\.md$/i, ""),
+      filePath,
+      target.unlockedDay,
+      nextWeek
+    );
+
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.filePath === filePath
+          ? { ...p, unlockedWeek: nextWeek, parsedPlan: reParsed }
+          : p
+      )
+    );
+  };
+
+  const lockWeek = (filePath: string, targetWeek: number) => {
+    const target = plans.find((p) => p.filePath === filePath);
+    if (!target) return;
+
+    const newUnlockedWeek = Math.max(1, targetWeek);
+    saveUnlockState(filePath, target.unlockedDay, newUnlockedWeek);
+
+    const reParsed = parseLearningPlan(
+      target.rawContent,
+      target.fileName.replace(/\.md$/i, ""),
+      filePath,
+      target.unlockedDay,
+      newUnlockedWeek
+    );
+
+    setPlans((prev) =>
+      prev.map((p) =>
+        p.filePath === filePath
+          ? { ...p, unlockedWeek: newUnlockedWeek, parsedPlan: reParsed }
           : p
       )
     );
@@ -246,5 +299,7 @@ export function useFolderPlans() {
     markTaskCompletedAndRemoveFromDisk,
     unlockNextDay,
     lockDay,
+    unlockNextWeek,
+    lockWeek,
   };
 }

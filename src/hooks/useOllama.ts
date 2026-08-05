@@ -38,9 +38,9 @@ export function useOllama() {
 
     for (const baseUrl of OLLAMA_ENDPOINTS) {
       try {
+        // Send a simple GET request without custom headers to avoid triggering CORS OPTIONS preflight 403 checks
         const response = await fetch(`${baseUrl}/api/tags`, {
           method: "GET",
-          headers: { "Content-Type": "application/json" },
         });
 
         if (response.ok) {
@@ -58,12 +58,12 @@ export function useOllama() {
     }
 
     setIsConnected(false);
-    setError("Cannot connect to Ollama at 127.0.0.1:11434 or localhost:11434");
+    setError("Cannot connect to Ollama. Set environment variable OLLAMA_ORIGINS=* and run ollama serve.");
     setIsChecking(false);
     return false;
   }, []);
 
-  // Check health on mount and poll every 5 seconds so status updates automatically when Ollama starts
+  // Check health on mount and poll every 5 seconds
   useEffect(() => {
     checkHealth();
     const interval = setInterval(checkHealth, 5000);

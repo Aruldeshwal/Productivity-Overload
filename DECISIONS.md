@@ -34,15 +34,15 @@
 
 ## ADR-003: Regex-based checklist parsing over LLM-based parsing
 
-**Context:** Need to count `- [x]` and `- [ ]` checklist items in markdown learning plan files.
+**Context:** Need to count `- [x]` and `- [ ]` checklist items in markdown learning plan files to compute completion percentages. Also need to extract frontmatter metadata (title, description, tags).
 
 **Options considered:**
-- **LLM-based parsing** — Send the markdown to a local model and ask it to count completed/total items.
-- **Regex-based parsing** — Simple pattern match: `/- \[x\]/gi` for completed, `/- \[ \]/g` for incomplete.
+- **LLM-based parsing** — Send the markdown to Qwen2.5-Coder and ask it to count completed/total items and extract metadata. Flexible, handles edge cases, but: 2–5 second latency per file, non-deterministic (could hallucinate counts), and wasteful for a perfectly structured format.
+- **Regex-based parsing** — `gray-matter` for frontmatter (well-tested library), then `/^[\s]*[-*]\s+\[([ xX])\]\s+(.+)$/gm` for checklist items. Microsecond execution, 100% deterministic, zero model overhead.
 
-**Decision:** _To be logged at Step 7 when implemented._
+**Decision:** Regex-based parsing with gray-matter. Implemented in `src/utils/mdParser.ts`.
 
-**Consequences:** _To be filled._
+**Consequences:** Parser is fast, deterministic, and testable with simple assertions. Trade-off: won't handle exotic markdown variants (e.g., nested checklists inside blockquotes), but for the learning-plan use case the standard `- [x]` format is sufficient. This is the foundation of the hybrid-engineering pattern — deterministic code for structured tasks, LLM calls reserved for genuinely non-deterministic work (extracting emotional signals from free text).
 
 ---
 
